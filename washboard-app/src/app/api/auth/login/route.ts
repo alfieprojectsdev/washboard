@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcrypt';
 import db from '@/lib/db';
-import { loginLimiter } from '@/lib/auth/rate-limit';
+import { applyRateLimit, loginLimiter } from '@/lib/auth/rate-limit';
 import {
   regenerateSession,
   getSessionIdFromRequest,
@@ -39,7 +39,7 @@ import {
 export async function POST(request: NextRequest) {
   try {
     // P0 Security: Apply rate limiting (5 attempts per 15 minutes)
-    const rateLimitResult = await loginLimiter(request);
+    const rateLimitResult = applyRateLimit(request, loginLimiter, 'login');
     if (rateLimitResult) {
       return rateLimitResult; // Rate limit exceeded
     }

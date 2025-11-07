@@ -5,6 +5,7 @@ import db from '@/lib/db';
 import { POST as signupHandler } from '@/app/api/auth/signup/route';
 import { POST as loginHandler } from '@/app/api/auth/login/route';
 import { POST as logoutHandler } from '@/app/api/auth/logout/route';
+import { clearRateLimitStore } from '@/lib/auth/rate-limit';
 
 /**
  * Auth Routes Test Suite
@@ -27,8 +28,8 @@ describe('Authentication API Routes', () => {
 
     if (branchCheck.rows.length === 0) {
       await db.query(
-        `INSERT INTO branches (branch_code, branch_name, address, phone)
-         VALUES ('MAIN', 'Main Branch', '123 Main St', '555-0100')`
+        `INSERT INTO branches (branch_code, branch_name, location)
+         VALUES ('MAIN', 'Main Branch', '123 Main St, 555-0100')`
       );
     }
 
@@ -45,6 +46,9 @@ describe('Authentication API Routes', () => {
         SELECT user_id FROM users WHERE username IN ('testuser', 'loginuser', 'duplicateuser')
       )`
     );
+
+    // Clear rate limit store to prevent test interference
+    clearRateLimitStore();
   });
 
   describe('POST /api/auth/signup', () => {
@@ -72,7 +76,7 @@ describe('Authentication API Routes', () => {
       expect(data.success).toBe(true);
       expect(data.user).toBeDefined();
       expect(data.user.username).toBe('testuser');
-      expect(data.user.branch_code).toBe('MAIN');
+      expect(data.user.branchCode).toBe('MAIN');
       expect(data.user.role).toBe('receptionist');
       expect(data.user.password_hash).toBeUndefined(); // Should not expose hash
 
@@ -240,7 +244,7 @@ describe('Authentication API Routes', () => {
       expect(setCookieHeader).toBeDefined();
       expect(setCookieHeader).toContain('washboard_session');
       expect(setCookieHeader).toContain('HttpOnly');
-      expect(setCookieHeader).toContain('SameSite=Strict');
+      expect(setCookieHeader?.toLowerCase()).toContain('samesite=strict');
     });
 
     it('should reject login with incorrect password', async () => {
@@ -390,7 +394,11 @@ describe('Authentication API Routes', () => {
       // Verify session cookie was cleared
       const clearCookieHeader = logoutResponse.headers.get('set-cookie');
       expect(clearCookieHeader).toContain('washboard_session=');
-      expect(clearCookieHeader).toContain('Max-Age=0'); // Cookie deletion
+      // Cookie deletion can use either Max-Age=0 or Expires in the past
+      expect(
+        clearCookieHeader?.includes('Max-Age=0') ||
+        clearCookieHeader?.includes('Expires=Thu, 01 Jan 1970')
+      ).toBe(true);
 
       // Verify session was destroyed in database
       const sessionCheck = await db.query(

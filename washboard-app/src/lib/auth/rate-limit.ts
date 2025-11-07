@@ -154,3 +154,10 @@ export function applyRateLimit(
 
   return checkRateLimit(identifier, config);
 }
+
+/**
+ * Clear all rate limit entries (for testing purposes)
+ */
+export function clearRateLimitStore(): void {
+  rateLimitStore.clear();
+}

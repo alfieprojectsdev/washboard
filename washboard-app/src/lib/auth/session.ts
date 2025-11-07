@@ -81,7 +81,8 @@ export async function getSession(sessionId: string): Promise<SessionData | null>
       return null;
     }
 
-    return JSON.parse(sess) as SessionData;
+    // Handle both string (real PostgreSQL) and object (pg-mem)
+    return (typeof sess === 'string' ? JSON.parse(sess) : sess) as SessionData;
   } catch (err) {
     console.error('Error retrieving session:', err);
     return null;
@@ -227,6 +228,9 @@ export async function getCurrentUser(
  * This should be run periodically (e.g., via cron job or on startup)
  */
 export async function cleanupExpiredSessions(): Promise<number> {
-  const result = await db.query(`DELETE FROM sessions WHERE expire < NOW()`);
+  const result = await db.query(
+    `DELETE FROM sessions WHERE expire < $1`,
+    [new Date()]
+  );
   return result.rowCount || 0;
 }

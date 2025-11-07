@@ -35,8 +35,8 @@ describe('Session Management', () => {
   beforeAll(async () => {
     // Ensure TEST branch exists
     await db.query(
-      `INSERT INTO branches (branch_code, branch_name, address, phone)
-       VALUES ('TEST', 'Test Branch', '123 Test St', '555-TEST')
+      `INSERT INTO branches (branch_code, branch_name, location)
+       VALUES ('TEST', 'Test Branch', '123 Test St, 555-TEST')
        ON CONFLICT (branch_code) DO NOTHING`
     );
 
@@ -79,7 +79,9 @@ describe('Session Management', () => {
       expect(result.rows[0].user_id).toBe(testUserData.userId);
       expect(result.rows[0].branch_code).toBe(testUserData.branchCode);
 
-      const storedData = JSON.parse(result.rows[0].sess);
+      // Handle both string (real PostgreSQL) and object (pg-mem)
+      const sess = result.rows[0].sess;
+      const storedData = typeof sess === 'string' ? JSON.parse(sess) : sess;
       expect(storedData.username).toBe(testUserData.username);
     });
 
@@ -172,7 +174,9 @@ describe('Session Management', () => {
         [sessionId]
       );
 
-      const storedData = JSON.parse(result.rows[0].sess);
+      // Handle both string (real PostgreSQL) and object (pg-mem)
+      const sess = result.rows[0].sess;
+      const storedData = typeof sess === 'string' ? JSON.parse(sess) : sess;
       expect(storedData.name).toBe('Updated Name');
 
       // Verify expiration was extended
