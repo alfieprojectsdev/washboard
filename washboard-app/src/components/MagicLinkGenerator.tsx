@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { trackEvent } from '@/components/GoatCounterAnalytics';
 
 interface MagicLinkGeneratorProps {
   branchCode: string;
@@ -42,6 +43,11 @@ export default function MagicLinkGenerator({
           url: data.bookingUrl,
           token: data.token,
           expiresAt: data.expiresAt,
+        });
+        // Track successful magic link generation
+        trackEvent('magic-link-generated', {
+          hasCustomerName: !!customerName.trim(),
+          hasMessenger: !!customerMessenger.trim(),
         });
         // Clear form
         setCustomerName('');

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import BookingsTable from './BookingsTable';
 import ShopStatusToggle from './ShopStatusToggle';
+import { trackEvent } from '@/components/GoatCounterAnalytics';
 
 interface User {
   userId: number;
@@ -137,6 +138,14 @@ export default function DashboardClient({ user, branch }: DashboardClientProps) 
       const data = await response.json();
 
       if (response.ok && data.success) {
+        // Track booking update
+        trackEvent('booking-updated', {
+          hasStatusChange: !!updates.status,
+          hasPositionChange: !!updates.position,
+          hasCancellation: updates.status === 'cancelled',
+          hasNotes: !!updates.notes,
+        });
+
         // Refresh bookings after update
         await fetchBookings();
         return { success: true };
@@ -161,6 +170,12 @@ export default function DashboardClient({ user, branch }: DashboardClientProps) 
       const data = await response.json();
 
       if (response.ok && data.success) {
+        // Track shop status change
+        trackEvent('shop-status-changed', {
+          isOpen: isOpen,
+          hasReason: !!reason,
+        });
+
         setShopStatus(data.status);
         return { success: true };
       } else {

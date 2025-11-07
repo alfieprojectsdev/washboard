@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
+import { trackEvent } from '@/components/GoatCounterAnalytics';
 
 interface BookingFormProps {
   branchCode: string;
@@ -75,6 +76,14 @@ export default function BookingForm({ token, initialData, onSuccess }: BookingFo
       if (!response.ok) {
         throw new Error(data.error || 'Failed to submit booking');
       }
+
+      // Track successful booking submission
+      trackEvent('booking-submitted', {
+        hasCustomerName: !!formData.customerName.trim(),
+        hasMessenger: !!formData.customerMessenger.trim(),
+        hasPreferredTime: !!formData.preferredTime,
+        hasNotes: !!formData.notes.trim(),
+      });
 
       onSuccess(data.booking.id, data.booking.position);
     } catch (error: unknown) {

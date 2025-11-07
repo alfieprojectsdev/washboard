@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
+import { trackEvent } from '@/components/GoatCounterAnalytics';
 
 interface MagicLink {
   id: number;
@@ -69,7 +70,17 @@ export default function MagicLinksTable({ magicLinks }: MagicLinksTableProps) {
 
   const handleCopyUrl = (url: string) => {
     navigator.clipboard.writeText(url);
+    // Track URL copy
+    trackEvent('magic-link-copied');
     alert('Link copied to clipboard!');
+  };
+
+  const handleToggleQR = (linkId: number, currentlyExpanded: boolean) => {
+    // Only track when showing QR (not hiding)
+    if (!currentlyExpanded) {
+      trackEvent('qr-code-displayed');
+    }
+    setExpandedQR(currentlyExpanded ? null : linkId);
   };
 
   const formatDate = (dateString: string) => {
@@ -210,7 +221,7 @@ export default function MagicLinksTable({ magicLinks }: MagicLinksTableProps) {
                     <div className="flex gap-2">
                       <button
                         onClick={() =>
-                          setExpandedQR(expandedQR === link.id ? null : link.id)
+                          handleToggleQR(link.id, expandedQR === link.id)
                         }
                         className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition"
                         disabled={!qrCodes[link.id]}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import GoatCounterAnalytics from '@/components/GoatCounterAnalytics';
 
 export const metadata: Metadata = {
   title: "Washboard",
@@ -15,6 +16,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased">
         {children}
+        <GoatCounterAnalytics />
       </body>
     </html>
   );
