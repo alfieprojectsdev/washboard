@@ -234,3 +234,19 @@ export async function cleanupExpiredSessions(): Promise<number> {
   );
   return result.rowCount || 0;
 }
+
+/**
+ * Check if request is authenticated
+ * Returns authentication status and session data
+ */
+export async function isAuthenticated(
+  request: NextRequest
+): Promise<{ authenticated: boolean; session: SessionData | null }> {
+  const sessionData = await getCurrentUser(request);
+
+  if (!sessionData) {
+    return { authenticated: false, session: null };
+  }
+
+  return { authenticated: true, session: sessionData };
+}
