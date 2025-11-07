@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import BookingsTable from './BookingsTable';
 import ShopStatusToggle from './ShopStatusToggle';
 
@@ -54,6 +55,7 @@ interface DashboardClientProps {
 }
 
 export default function DashboardClient({ user, branch }: DashboardClientProps) {
+  const router = useRouter();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [shopStatus, setShopStatus] = useState<ShopStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -206,12 +208,20 @@ export default function DashboardClient({ user, branch }: DashboardClientProps) 
               </p>
             </div>
 
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md transition"
-            >
-              Logout
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => router.push('/dashboard/magic-links')}
+                className="px-4 py-2 text-sm text-blue-700 hover:text-blue-900 hover:bg-blue-50 rounded-md transition font-medium"
+              >
+                🔗 Magic Links
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md transition"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </header>
