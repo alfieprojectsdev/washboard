@@ -4,7 +4,7 @@ import { beforeAll, afterAll } from 'vitest';
 beforeAll(async () => {
   // Set environment for testing
   process.env.USE_MOCK_DB = 'true';
-  process.env.NODE_ENV = 'test';
+  // NODE_ENV is automatically set by Vitest
 
   console.log('🧪 Test environment initialized');
   console.log('   Using pg-mem (mock database)');

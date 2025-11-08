@@ -99,6 +99,28 @@ export default function BookingsTable({
     });
   };
 
+  const handlePositionChange = async (bookingId: number, newPosition: number) => {
+    setUpdatingIds((prev) => new Set(prev).add(bookingId));
+
+    const result = await onUpdate(bookingId, { position: newPosition });
+
+    if (!result.success) {
+      alert(`Failed to update position: ${result.error}`);
+    }
+
+    setUpdatingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(bookingId);
+      return next;
+    });
+  };
+
+  const isLastInQueue = (booking: Booking) => {
+    const queuedBookings = bookings.filter((b) => b.status === 'queued');
+    const lastQueued = queuedBookings[queuedBookings.length - 1];
+    return booking.id === lastQueued?.id;
+  };
+
   const formatTime = (dateString: string | null) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleString();
@@ -263,6 +285,46 @@ export default function BookingsTable({
                             className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50"
                           >
                             Cancel
+                          </button>
+                          <button
+                            onClick={() =>
+                              handlePositionChange(
+                                booking.id,
+                                booking.position - 1
+                              )
+                            }
+                            disabled={
+                              booking.position === 1 ||
+                              updatingIds.has(booking.id)
+                            }
+                            className={`px-3 py-1 text-xs rounded ${
+                              booking.position === 1
+                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                : 'bg-green-600 text-white hover:bg-green-700'
+                            } disabled:opacity-50`}
+                            title="Move up in queue"
+                          >
+                            ↑ Move Up
+                          </button>
+                          <button
+                            onClick={() =>
+                              handlePositionChange(
+                                booking.id,
+                                booking.position + 1
+                              )
+                            }
+                            disabled={
+                              isLastInQueue(booking) ||
+                              updatingIds.has(booking.id)
+                            }
+                            className={`px-3 py-1 text-xs rounded ${
+                              isLastInQueue(booking)
+                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                : 'bg-green-600 text-white hover:bg-green-700'
+                            } disabled:opacity-50`}
+                            title="Move down in queue"
+                          >
+                            ↓ Move Down
                           </button>
                         </>
                       )}

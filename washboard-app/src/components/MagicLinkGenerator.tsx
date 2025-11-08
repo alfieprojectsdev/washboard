@@ -31,6 +31,7 @@ export default function MagicLinkGenerator({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          branchCode: branchCode,
           customerName: customerName.trim() || undefined,
           customerMessenger: customerMessenger.trim() || undefined,
         }),
@@ -40,9 +41,9 @@ export default function MagicLinkGenerator({
 
       if (response.ok && data.success) {
         setGeneratedLink({
-          url: data.bookingUrl,
-          token: data.token,
-          expiresAt: data.expiresAt,
+          url: data.data.link.url,
+          token: data.data.link.token,
+          expiresAt: data.data.link.expiresAt,
         });
         // Track successful magic link generation
         trackEvent('magic-link-generated', {

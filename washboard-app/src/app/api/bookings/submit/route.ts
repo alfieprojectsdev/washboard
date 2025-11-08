@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
-import { validateMagicLink, markMagicLinkUsed } from '@/lib/magic-links/utils';
+import { validateMagicLink } from '@/lib/magic-links/utils';
 
 /**
  * POST /api/bookings/submit
@@ -114,59 +114,86 @@ export async function POST(request: NextRequest) {
 
     const branchCode = validation.link!.branchCode;
 
-    // 5. Calculate queue position
-    // Position = count of active bookings (queued or in_service) + 1
-    const positionResult = await db.query(
-      `SELECT COUNT(*) as count FROM bookings
-       WHERE branch_code = $1 AND status IN ('queued', 'in_service')`,
-      [branchCode]
-    );
+    // 5. Start transaction for atomic booking creation
+    // Transaction ensures: race-free position assignment, magic link single-use,
+    // and atomic rollback on any failure
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
 
-    const position = parseInt(positionResult.rows[0].count) + 1;
+      // 6. Calculate queue position with lock
+      // FOR UPDATE prevents race conditions during position assignment
+      // Two concurrent requests will be serialized, preventing duplicate positions
+      const positionResult = await client.query(
+        `SELECT COUNT(*) as count FROM bookings
+         WHERE branch_code = $1 AND status IN ('queued', 'in_service')
+         FOR UPDATE`,
+        [branchCode]
+      );
 
-    // 6. Create booking
-    // Security: Parameterized query prevents SQL injection
-    // Data sanitization: Trim whitespace from user inputs
-    const result = await db.query(
-      `INSERT INTO bookings (
-        branch_code, magic_link_id, plate, vehicle_make, vehicle_model,
-        customer_name, customer_messenger, preferred_time, status, position, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      RETURNING id, branch_code, position, status`,
-      [
-        branchCode,
-        validation.link!.id,
-        plate.trim(),
-        vehicleMake.trim(),
-        vehicleModel.trim(),
-        customerName?.trim() || null,
-        customerMessenger?.trim() || null,
-        preferredTime || null,
-        'queued',
-        position,
-        notes?.trim() || null
-      ]
-    );
+      const position = parseInt(positionResult.rows[0].count) + 1;
 
-    const booking = result.rows[0];
+      // 7. Create booking
+      // Security: Parameterized query prevents SQL injection
+      // Data sanitization: Trim whitespace from user inputs
+      const result = await client.query(
+        `INSERT INTO bookings (
+          branch_code, magic_link_id, plate, vehicle_make, vehicle_model,
+          customer_name, customer_messenger, preferred_time, status, position, notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING id, branch_code, position, status`,
+        [
+          branchCode,
+          validation.link!.id,
+          plate.trim(),
+          vehicleMake.trim(),
+          vehicleModel.trim(),
+          customerName?.trim() || null,
+          customerMessenger?.trim() || null,
+          preferredTime || null,
+          'queued',
+          position,
+          notes?.trim() || null
+        ]
+      );
 
-    // 7. Mark magic link as used (single-use enforcement)
-    // Security: Prevents token reuse - link can only create one booking
-    await markMagicLinkUsed(token, booking.id);
+      const booking = result.rows[0];
 
-    // 8. Return success response
-    return NextResponse.json(
-      {
-        success: true,
-        booking: {
-          id: booking.id,
-          position: booking.position,
-          status: booking.status,
-          branchCode: booking.branch_code
-        }
-      },
-      { status: 201 }
-    );
+      // 8. Mark magic link as used (single-use enforcement)
+      // Security: Prevents token reuse - link can only create one booking
+      // Inside transaction ensures atomicity with booking creation
+      await client.query(
+        `UPDATE customer_magic_links
+         SET used_at = NOW(), booking_id = $1
+         WHERE token = $2`,
+        [booking.id, token]
+      );
+
+      // 9. Commit transaction
+      await client.query('COMMIT');
+
+      // 10. Return success response
+      return NextResponse.json(
+        {
+          success: true,
+          booking: {
+            id: booking.id,
+            position: booking.position,
+            status: booking.status,
+            branchCode: booking.branch_code
+          }
+        },
+        { status: 201 }
+      );
+
+    } catch (error: unknown) {
+      // Rollback transaction on any error
+      await client.query('ROLLBACK');
+      throw error; // Re-throw to outer catch for consistent error handling
+    } finally {
+      // Always release the client connection
+      client.release();
+    }
 
   } catch (error: unknown) {
     // Security: Never log tokens or sensitive data in error messages
