@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "scripts": {
+    "build": "cd washboard-app && npm install && npm run build",
+    "dev": "cd washboard-app && npm run dev",
+    "start": "cd washboard-app && npm start"
+  }
+}

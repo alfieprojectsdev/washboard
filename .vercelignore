@@ -1,0 +1,6 @@
+docs/
+*.log
+.env
+.env.local
+washboard-app/node_modules
+washboard-app/.next
