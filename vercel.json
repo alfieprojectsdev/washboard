@@ -1,0 +1,7 @@
+{
+  "buildCommand": "cd washboard-app && npm run build",
+  "devCommand": "cd washboard-app && npm run dev",
+  "installCommand": "cd washboard-app && npm install",
+  "framework": "nextjs",
+  "outputDirectory": "washboard-app/.next"
+}
