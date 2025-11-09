@@ -16,25 +16,53 @@ import db from '@/lib/db';
  * - Copy booking URLs to clipboard
  */
 export default async function MagicLinksPage() {
+  // Check if running in screenshot mode (for portfolio screenshots without database)
+  const isScreenshotMode = process.env.WASHBOARD_SCREENSHOT_MODE === 'true';
+
   // 1. Check authentication on server side
   const cookieStore = await cookies();
   const sessionId = cookieStore.get('washboard_session')?.value;
 
-  if (!sessionId) {
+  if (!sessionId && !isScreenshotMode) {
     redirect('/login');
   }
 
-  // 2. Validate session
-  const sessionResult = await db.query(
-    'SELECT sess, user_id, branch_code FROM sessions WHERE sid = $1 AND expire > NOW()',
-    [sessionId]
-  );
+  // 2. Validate session (skip in screenshot mode)
+  let sessionResult;
+  if (!isScreenshotMode) {
+    sessionResult = await db.query(
+      'SELECT sess, user_id, branch_code FROM sessions WHERE sid = $1 AND expire > NOW()',
+      [sessionId]
+    );
 
-  if (sessionResult.rows.length === 0) {
-    redirect('/login');
+    if (sessionResult.rows.length === 0) {
+      redirect('/login');
+    }
   }
 
-  const session = sessionResult.rows[0];
+  // Handle screenshot mode with mock data
+  if (isScreenshotMode) {
+    return (
+      <MagicLinksClient
+        user={{
+          userId: 1,
+          username: 'demo_receptionist',
+          name: 'Sarah Johnson',
+          email: 'receptionist@carwash.local',
+          role: 'receptionist',
+          branchCode: 'MAIN',
+        }}
+        branch={{
+          branchCode: 'MAIN',
+          branchName: 'Main Branch',
+          location: '123 Car Wash Lane',
+        }}
+      />
+    );
+  }
+
+  // TypeScript: sessionResult is guaranteed to be defined here (screenshot mode returned early)
+  const session = sessionResult!.rows[0];
   const sessionData = typeof session.sess === 'string'
     ? JSON.parse(session.sess)
     : session.sess;

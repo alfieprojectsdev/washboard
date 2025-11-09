@@ -26,6 +26,7 @@
     "react-dom": "19.2.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@tailwindcss/postcss": "^4",
     "@types/bcrypt": "^6.0.0",
     "@types/express-session": "^1.18.2",
@@ -40,6 +41,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.0.1",
     "pg-mem": "^3.0.5",
+    "playwright": "^1.56.1",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.0.7"
