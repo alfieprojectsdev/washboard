@@ -25,9 +25,9 @@ export default async function DashboardPage() {
   const cookieStore = await cookies();
   const sessionId = cookieStore.get('washboard_session')?.value;
 
-  if (!sessionId && !isScreenshotMode) {
-    redirect('/login');
-  }
+  // if (!sessionId && !isScreenshotMode) {
+  //   redirect('/login');
+  // }
 
   // 2. Validate session (skip in screenshot mode)
   let sessionResult;
