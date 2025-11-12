@@ -87,7 +87,7 @@ export default function BookingPage() {
       <div className="max-w-2xl mx-auto px-4">
         <div className="bg-white rounded-lg shadow-lg p-8">
           <h1 className="text-3xl font-bold mb-2">Car Wash Booking</h1>
-          <p className="text-gray-600 mb-6">Branch: {validation.link?.branchCode}</p>
+          <p className="text-gray-800 mb-6">Branch: {validation.link?.branchCode}</p>
 
           <BookingForm
             branchCode={branchCode}

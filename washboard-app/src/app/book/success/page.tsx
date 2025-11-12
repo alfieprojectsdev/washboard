@@ -17,7 +17,7 @@ function BookingSuccessContent() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
           <h1 className="text-2xl font-bold text-red-600 mb-4">Invalid Link</h1>
-          <p className="text-gray-700">
+          <p className="text-gray-900">
             This page requires booking information. Please submit a booking first.
           </p>
         </div>
@@ -53,7 +53,7 @@ function BookingSuccessContent() {
             Booking Confirmed!
           </h1>
 
-          <p className="text-center text-gray-600 mb-8">
+          <p className="text-center text-gray-800 mb-8">
             Your car wash booking has been successfully submitted.
           </p>
 
@@ -61,11 +61,11 @@ function BookingSuccessContent() {
           <div className="bg-gray-50 rounded-lg p-6 mb-8">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-sm text-gray-500">Booking ID</p>
+                <p className="text-sm text-gray-700">Booking ID</p>
                 <p className="text-lg font-semibold text-gray-900">#{bookingId}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Queue Position</p>
+                <p className="text-sm text-gray-700">Queue Position</p>
                 <p className="text-lg font-semibold text-gray-900">
                   {position === 1 ? 'Next in line!' : `#${position} in queue`}
                 </p>
@@ -79,7 +79,7 @@ function BookingSuccessContent() {
               What Happens Next?
             </h2>
 
-            <ul className="space-y-3 text-gray-700">
+            <ul className="space-y-3 text-gray-900">
               <li className="flex items-start">
                 <svg
                   className="w-6 h-6 text-blue-600 mr-3 flex-shrink-0 mt-0.5"
@@ -154,7 +154,7 @@ function BookingSuccessContent() {
 
 export default function BookingSuccessPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="text-gray-600">Loading...</div></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="text-gray-900">Loading...</div></div>}>
       <BookingSuccessContent />
     </Suspense>
   );

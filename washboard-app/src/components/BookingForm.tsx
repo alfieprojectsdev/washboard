@@ -113,7 +113,7 @@ export default function BookingForm({ token, initialData, onSuccess }: BookingFo
 
         {/* License Plate */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-900 mb-1">
             License Plate <span className="text-red-500">*</span>
           </label>
           <input
@@ -132,7 +132,7 @@ export default function BookingForm({ token, initialData, onSuccess }: BookingFo
 
         {/* Vehicle Make */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-900 mb-1">
             Vehicle Make <span className="text-red-500">*</span>
           </label>
           <input
@@ -151,7 +151,7 @@ export default function BookingForm({ token, initialData, onSuccess }: BookingFo
 
         {/* Vehicle Model */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-900 mb-1">
             Vehicle Model <span className="text-red-500">*</span>
           </label>
           <input
@@ -175,7 +175,7 @@ export default function BookingForm({ token, initialData, onSuccess }: BookingFo
 
         {/* Customer Name */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-900 mb-1">
             Name
           </label>
           <input
@@ -190,7 +190,7 @@ export default function BookingForm({ token, initialData, onSuccess }: BookingFo
 
         {/* Messenger Handle */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-900 mb-1">
             Messenger Handle
           </label>
           <input
@@ -208,7 +208,7 @@ export default function BookingForm({ token, initialData, onSuccess }: BookingFo
 
         {/* Preferred Time */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-900 mb-1">
             Preferred Arrival Time
           </label>
           <input
@@ -224,7 +224,7 @@ export default function BookingForm({ token, initialData, onSuccess }: BookingFo
 
         {/* Notes */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-900 mb-1">
             Notes
           </label>
           <textarea
