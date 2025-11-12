@@ -135,6 +135,11 @@ export async function POST(request: NextRequest) {
     const host = request.headers.get('host') || 'localhost:3000';
     const baseUrl = `${protocol}://${host}`;
 
+    // Debug logging (remove after verification)
+    console.log('[Magic Link Generation] Protocol:', protocol);
+    console.log('[Magic Link Generation] Host:', host);
+    console.log('[Magic Link Generation] Base URL:', baseUrl);
+
     // 6. Generate magic link
     const link = await generateMagicLink({
       branchCode: normalizedBranchCode,
