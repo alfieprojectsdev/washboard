@@ -10,6 +10,7 @@ export interface MagicLinkData {
   customerName?: string;
   customerMessenger?: string;
   createdBy: number; // user_id of receptionist
+  baseUrl?: string; // Optional base URL for link generation (auto-detected from request)
 }
 
 /**
@@ -98,7 +99,8 @@ export async function generateMagicLink(data: MagicLinkData): Promise<MagicLink>
     const row = result.rows[0];
 
     // Generate full URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    // Priority: 1) Provided baseUrl, 2) Environment variable, 3) Localhost fallback
+    const baseUrl = data.baseUrl || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const url = `${baseUrl}/book/${row.branch_code}/${row.token}`;
 
     return {

@@ -130,20 +130,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 5. Generate magic link
+    // 5. Generate base URL from request headers (production-aware)
+    const protocol = request.headers.get('x-forwarded-proto') || 'http';
+    const host = request.headers.get('host') || 'localhost:3000';
+    const baseUrl = `${protocol}://${host}`;
+
+    // 6. Generate magic link
     const link = await generateMagicLink({
       branchCode: normalizedBranchCode,
       customerName: customerName || undefined,
       customerMessenger: customerMessenger || undefined,
       createdBy: user.userId,
+      baseUrl,
     });
 
-    // 6. Generate QR code
+    // 7. Generate QR code
     const qrCode = await generateQRCode(link.url, {
       size: qrSize || QR_SIZE_NORMAL,
     });
 
-    // 7. Return success response
+    // 8. Return success response
     return NextResponse.json(
       {
         success: true,
