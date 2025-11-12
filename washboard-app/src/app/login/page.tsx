@@ -53,7 +53,7 @@ export default function LoginPage() {
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Washboard - Receptionist Login
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="mt-2 text-center text-sm text-gray-800">
             Sign in to manage your car wash queue
           </p>
         </div>
@@ -130,7 +130,7 @@ export default function LoginPage() {
           </div>
 
           <div className="text-center text-sm">
-            <span className="text-gray-600">Don't have an account? </span>
+            <span className="text-gray-800">Don't have an account? </span>
             <Link
               href="/signup"
               className="font-medium text-blue-600 hover:text-blue-500"
