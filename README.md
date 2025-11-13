@@ -232,7 +232,6 @@ npm run test:coverage
 ```
 washboard/
 ├── docs/                          # Documentation
-│   ├── CLAUDE.md                  # Comprehensive project guide
 │   └── context_handoff.md         # Original requirements
 ├── washboard-app/                 # Main application
 │   ├── src/
