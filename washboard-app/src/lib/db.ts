@@ -81,7 +81,8 @@ if (process.env.USE_MOCK_DB === 'true') {
     connectionString: process.env.DATABASE_URL,
     max: 20, // Connection pool size
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000
+    // connectionTimeoutMillis: 2000
+    connectionTimeoutMillis: 15000 // Alfie: updated manually
   });
 
   console.log('🌐 Using PostgreSQL (DATABASE_URL)');

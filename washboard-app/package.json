@@ -10,7 +10,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "db:verify": "ts-node scripts/verify-database-setup.ts",
+    "db:setup": "psql $DATABASE_URL < scripts/setup-required-data.sql"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
