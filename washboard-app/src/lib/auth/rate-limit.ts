@@ -1,5 +1,6 @@
 // src/lib/auth/rate-limit.ts
 import { NextRequest, NextResponse } from 'next/server';
+import db from '@/lib/db';
 
 /**
  * Rate limiter configuration
@@ -12,36 +13,6 @@ interface RateLimitConfig {
     code: string;
   };
 }
-
-/**
- * Rate limit entry for tracking requests
- */
-interface RateLimitEntry {
-  count: number;
-  resetTime: number;
-}
-
-/**
- * In-memory store for rate limiting
- * Note: In production, consider using Redis for distributed rate limiting
- */
-const rateLimitStore = new Map<string, RateLimitEntry>();
-
-/**
- * Clean up expired entries periodically (every 5 minutes)
- */
-setInterval(() => {
-  const now = Date.now();
-  const keysToDelete: string[] = [];
-
-  rateLimitStore.forEach((entry, key) => {
-    if (now > entry.resetTime) {
-      keysToDelete.push(key);
-    }
-  });
-
-  keysToDelete.forEach(key => rateLimitStore.delete(key));
-}, 5 * 60 * 1000);
 
 /**
  * Get client IP address from request
@@ -62,48 +33,82 @@ function getClientIp(request: NextRequest): string {
 }
 
 /**
- * Check rate limit for a given identifier and config
+ * Check rate limit using PostgreSQL database (serverless-compatible)
  * Returns NextResponse with error if limit exceeded, null otherwise
  */
-function checkRateLimit(
+async function checkRateLimit(
   identifier: string,
+  endpoint: string,
   config: RateLimitConfig
-): NextResponse | null {
-  const now = Date.now();
-  const entry = rateLimitStore.get(identifier);
+): Promise<NextResponse | null> {
+  try {
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - config.windowMs);
 
-  if (!entry || now > entry.resetTime) {
-    // First request or window expired - create new entry
-    rateLimitStore.set(identifier, {
-      count: 1,
-      resetTime: now + config.windowMs
-    });
+    // Start transaction for atomic rate limit check + update
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Clean up old entries (outside current window)
+      await client.query(
+        'DELETE FROM rate_limits WHERE window_start < $1',
+        [windowStart]
+      );
+
+      // Get or create rate limit entry
+      const result = await client.query(
+        `INSERT INTO rate_limits (endpoint, identifier, count, window_start)
+         VALUES ($1, $2, 1, $3)
+         ON CONFLICT (endpoint, identifier)
+         DO UPDATE SET
+           count = CASE
+             WHEN rate_limits.window_start < $4 THEN 1
+             ELSE rate_limits.count + 1
+           END,
+           window_start = CASE
+             WHEN rate_limits.window_start < $4 THEN $3
+             ELSE rate_limits.window_start
+           END
+         RETURNING count, window_start`,
+        [endpoint, identifier, now, windowStart]
+      );
+
+      await client.query('COMMIT');
+
+      const { count, window_start } = result.rows[0];
+
+      // Check if limit exceeded
+      if (count > config.max) {
+        const resetTime = new Date(new Date(window_start).getTime() + config.windowMs);
+        const retryAfter = Math.ceil((resetTime.getTime() - now.getTime()) / 1000);
+
+        return NextResponse.json(
+          config.message,
+          {
+            status: 429,
+            headers: {
+              'Retry-After': retryAfter.toString(),
+              'X-RateLimit-Limit': config.max.toString(),
+              'X-RateLimit-Remaining': '0',
+              'X-RateLimit-Reset': resetTime.toISOString()
+            }
+          }
+        );
+      }
+
+      return null;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Rate limit check error:', err);
+    // On error, allow request through (fail-open to prevent DOS via db errors)
     return null;
   }
-
-  if (entry.count >= config.max) {
-    // Rate limit exceeded
-    const retryAfter = Math.ceil((entry.resetTime - now) / 1000);
-
-    return NextResponse.json(
-      config.message,
-      {
-        status: 429,
-        headers: {
-          'Retry-After': retryAfter.toString(),
-          'X-RateLimit-Limit': config.max.toString(),
-          'X-RateLimit-Remaining': '0',
-          'X-RateLimit-Reset': new Date(entry.resetTime).toISOString()
-        }
-      }
-    );
-  }
-
-  // Increment count
-  entry.count += 1;
-  rateLimitStore.set(identifier, entry);
-
-  return null;
 }
 
 /**
@@ -137,27 +142,31 @@ export const loginLimiter = {
 };
 
 /**
- * Apply rate limit to a request
+ * Apply rate limit to a request (database-based, serverless-compatible)
  * Returns NextResponse with error if limit exceeded, null otherwise
  *
  * @param request - Next.js request object
  * @param config - Rate limit configuration
  * @param keyPrefix - Prefix for the rate limit key (e.g., 'signup', 'login')
  */
-export function applyRateLimit(
+export async function applyRateLimit(
   request: NextRequest,
   config: RateLimitConfig,
   keyPrefix: string
-): NextResponse | null {
+): Promise<NextResponse | null> {
   const ip = getClientIp(request);
   const identifier = `${keyPrefix}:${ip}`;
 
-  return checkRateLimit(identifier, config);
+  return checkRateLimit(identifier, keyPrefix, config);
 }
 
 /**
  * Clear all rate limit entries (for testing purposes)
  */
-export function clearRateLimitStore(): void {
-  rateLimitStore.clear();
+export async function clearRateLimitStore(): Promise<void> {
+  try {
+    await db.query('DELETE FROM rate_limits');
+  } catch (err) {
+    console.error('Error clearing rate limit store:', err);
+  }
 }

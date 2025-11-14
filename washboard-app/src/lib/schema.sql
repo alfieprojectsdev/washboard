@@ -182,6 +182,26 @@ VALUES ('MAIN', TRUE, NULL)
 ON CONFLICT (branch_code) DO NOTHING;
 
 -- ============================================
+-- RATE LIMITING TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS rate_limits (
+  endpoint VARCHAR(100) NOT NULL,
+  identifier VARCHAR(100) NOT NULL,
+  count INTEGER NOT NULL DEFAULT 1,
+  window_start TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (endpoint, identifier)
+);
+
+COMMENT ON TABLE rate_limits IS 'Rate limiting for login/signup endpoints (serverless-compatible)';
+COMMENT ON COLUMN rate_limits.endpoint IS 'API endpoint being rate limited (e.g., "login", "signup")';
+COMMENT ON COLUMN rate_limits.identifier IS 'IP address or user identifier';
+COMMENT ON COLUMN rate_limits.count IS 'Number of requests in current window';
+COMMENT ON COLUMN rate_limits.window_start IS 'Start time of current rate limit window';
+
+-- Index for efficient cleanup of old entries
+CREATE INDEX IF NOT EXISTS idx_rate_limits_window ON rate_limits(window_start);
+
+-- ============================================
 -- SCHEMA VERSION
 -- ============================================
 CREATE TABLE IF NOT EXISTS schema_version (
