@@ -244,7 +244,7 @@ describe('Authentication API Routes', () => {
       expect(setCookieHeader).toBeDefined();
       expect(setCookieHeader).toContain('washboard_session');
       expect(setCookieHeader).toContain('HttpOnly');
-      expect(setCookieHeader?.toLowerCase()).toContain('samesite=strict');
+      expect(setCookieHeader?.toLowerCase()).toContain('samesite=lax');
     });
 
     it('should reject login with incorrect password', async () => {
