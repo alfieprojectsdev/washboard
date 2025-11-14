@@ -26,14 +26,18 @@ export default function MagicLinkGenerator({
     setError(null);
     setIsGenerating(true);
 
+    // Normalize input values - convert empty/whitespace strings to undefined
+    const normalizedCustomerName = customerName?.trim() || undefined;
+    const normalizedMessenger = customerMessenger?.trim() || undefined;
+
     try {
       const response = await fetch('/api/magic-links/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           branchCode: branchCode,
-          customerName: customerName.trim() || undefined,
-          customerMessenger: customerMessenger.trim() || undefined,
+          customerName: normalizedCustomerName,
+          customerMessenger: normalizedMessenger,
         }),
       });
 

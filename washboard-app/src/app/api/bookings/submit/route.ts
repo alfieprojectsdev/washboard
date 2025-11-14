@@ -114,7 +114,36 @@ export async function POST(request: NextRequest) {
 
     const branchCode = validation.link!.branchCode;
 
-    // 5. Start transaction for atomic booking creation
+    // 5. Check if shop is open and accepting bookings
+    // Business logic: Prevent bookings when shop is closed
+    const shopStatusResult = await db.query(
+      'SELECT is_open, reason FROM shop_status WHERE branch_code = $1',
+      [branchCode]
+    );
+
+    if (shopStatusResult.rows.length === 0) {
+      // No shop status found - default to closed for safety
+      return NextResponse.json(
+        {
+          error: 'Bookings are currently unavailable. Please contact the shop.',
+          code: 'SHOP_UNAVAILABLE'
+        },
+        { status: 503 }
+      );
+    }
+
+    const shopStatus = shopStatusResult.rows[0];
+    if (!shopStatus.is_open) {
+      return NextResponse.json(
+        {
+          error: shopStatus.reason || 'Sorry, we are currently closed. Please try again later.',
+          code: 'SHOP_CLOSED'
+        },
+        { status: 403 }
+      );
+    }
+
+    // 6. Start transaction for atomic booking creation
     // Transaction ensures: race-free position assignment, magic link single-use,
     // and atomic rollback on any failure
     const client = await db.connect();

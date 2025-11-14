@@ -1,3 +1,37 @@
+# Deployment and local testing
 .vercel
 testaccounts.md
 .claude/
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.json
+secrets.txt
+
+# Backup files
+*.backup
+*.bak
+*.old
+*.orig
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.temp

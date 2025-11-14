@@ -150,7 +150,7 @@ export function getSessionIdFromRequest(request: NextRequest): string | null {
  * P0 Security Features:
  * - httpOnly: Prevents JavaScript access (XSS protection)
  * - secure: Only sent over HTTPS in production
- * - sameSite: 'strict' prevents CSRF attacks
+ * - sameSite: 'lax' allows cookies on top-level navigation (QR codes) while preventing CSRF
  */
 export function setSessionCookie(
   response: NextResponse,
@@ -159,7 +159,7 @@ export function setSessionCookie(
   response.cookies.set(SESSION_COOKIE_NAME, sessionId, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: 'lax',
     maxAge: SESSION_DURATION / 1000, // Convert to seconds
     path: '/',
   });

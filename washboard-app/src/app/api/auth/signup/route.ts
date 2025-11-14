@@ -17,7 +17,7 @@ import { applyRateLimit, signupLimiter } from '@/lib/auth/rate-limit';
  */
 export async function POST(request: NextRequest) {
   // P0 Security: Apply rate limiting (3 attempts per hour)
-  const rateLimitResult = applyRateLimit(request, signupLimiter, 'signup');
+  const rateLimitResult = await applyRateLimit(request, signupLimiter, 'signup');
   if (rateLimitResult) {
     return rateLimitResult;
   }

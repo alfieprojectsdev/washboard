@@ -39,7 +39,7 @@ import {
 export async function POST(request: NextRequest) {
   try {
     // P0 Security: Apply rate limiting (5 attempts per 15 minutes)
-    const rateLimitResult = applyRateLimit(request, loginLimiter, 'login');
+    const rateLimitResult = await applyRateLimit(request, loginLimiter, 'login');
     if (rateLimitResult) {
       return rateLimitResult; // Rate limit exceeded
     }

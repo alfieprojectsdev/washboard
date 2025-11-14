@@ -2,6 +2,34 @@
 
 import { useState } from 'react';
 
+/**
+ * Validate messenger URL to prevent XSS attacks
+ * Only allow http: and https: protocols from trusted messenger domains
+ */
+function isValidMessengerUrl(url: string | null): boolean {
+  if (!url) return false;
+
+  try {
+    const parsed = new URL(url);
+
+    // Only allow http: and https: protocols (blocks javascript:, data:, etc.)
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return false;
+    }
+
+    // Whitelist messenger domains for additional security
+    const allowedDomains = ['m.me', 'facebook.com', 'fb.me', 'messenger.com'];
+    const isAllowedDomain = allowedDomains.some(domain =>
+      parsed.hostname.endsWith(domain) || parsed.hostname === domain
+    );
+
+    return isAllowedDomain;
+  } catch {
+    // Invalid URL format
+    return false;
+  }
+}
+
 interface Booking {
   id: number;
   branchCode: string;
@@ -201,7 +229,7 @@ export default function BookingsTable({
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {booking.customerName || '-'}
-                  {booking.customerMessenger && (
+                  {booking.customerMessenger && isValidMessengerUrl(booking.customerMessenger) ? (
                     <a
                       href={booking.customerMessenger}
                       target="_blank"
@@ -211,7 +239,11 @@ export default function BookingsTable({
                     >
                       💬
                     </a>
-                  )}
+                  ) : booking.customerMessenger ? (
+                    <span className="ml-2 text-gray-400" title="Invalid messenger URL">
+                      💬
+                    </span>
+                  ) : null}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span
