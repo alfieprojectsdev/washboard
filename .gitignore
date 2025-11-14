@@ -1,7 +1,6 @@
 # Deployment and local testing
 .vercel
 testaccounts.md
-.claude/
 
 # Secrets and credentials
 .env
