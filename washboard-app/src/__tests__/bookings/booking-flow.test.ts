@@ -38,7 +38,14 @@ describe('Customer Booking Flow', () => {
       [testBranchCode, 'Test Branch', '123 Test St']
     );
 
-    // 2. Create test user (receptionist) for magic link creation
+    // 2. Create shop status (shop is open for testing)
+    await db.query(
+      `INSERT INTO shop_status (branch_code, is_open, updated_by, updated_at)
+       VALUES ($1, $2, NULL, NOW())`,
+      [testBranchCode, true]
+    );
+
+    // 3. Create test user (receptionist) for magic link creation
     const userResult = await db.query(
       `INSERT INTO users (branch_code, username, password_hash, name, role)
        VALUES ($1, $2, $3, $4, $5)
