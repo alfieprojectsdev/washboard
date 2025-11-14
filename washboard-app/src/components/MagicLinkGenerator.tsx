@@ -93,7 +93,7 @@ export default function MagicLinkGenerator({
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
             placeholder="John Doe"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 placeholder-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500"
             disabled={isGenerating}
           />
         </div>
@@ -107,10 +107,10 @@ export default function MagicLinkGenerator({
             value={customerMessenger}
             onChange={(e) => setCustomerMessenger(e.target.value)}
             placeholder="m.me/johndoe or fb.com/johndoe"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 placeholder-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500"
             disabled={isGenerating}
           />
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-gray-700 mt-1">
             Format: m.me/username or fb.com/username
           </p>
         </div>

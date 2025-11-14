@@ -174,7 +174,7 @@ export default function MagicLinksClient({ user, branch }: MagicLinksClientProps
                     ${
                       statusFilter === status
                         ? 'border-blue-600 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        : 'border-transparent text-gray-700 hover:text-gray-900 hover:border-gray-300'
                     }
                   `}
                 >
@@ -194,7 +194,7 @@ export default function MagicLinksClient({ user, branch }: MagicLinksClientProps
         )}
 
         {/* Last Update Indicator */}
-        <div className="mb-4 text-sm text-gray-500">
+        <div className="mb-4 text-sm text-gray-700">
           Last updated: {lastUpdate.toLocaleTimeString()} • Auto-refreshes every 30s
         </div>
 

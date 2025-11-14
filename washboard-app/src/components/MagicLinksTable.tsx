@@ -121,22 +121,22 @@ export default function MagicLinksTable({ magicLinks }: MagicLinksTableProps) {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Customer
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Status
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Expires / Used
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Booking
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Created
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -177,18 +177,18 @@ export default function MagicLinksTable({ magicLinks }: MagicLinksTableProps) {
                         <div className="font-medium text-green-600">
                           {formatTimeRemaining(link.expiresAt)}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-gray-700">
                           {formatDate(link.expiresAt)}
                         </div>
                       </div>
                     )}
                     {link.status === 'expired' && (
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-700">
                         Expired: {formatDate(link.expiresAt)}
                       </div>
                     )}
                     {link.status === 'used' && link.usedAt && (
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-700">
                         Used: {formatDate(link.usedAt)}
                       </div>
                     )}
@@ -199,20 +199,20 @@ export default function MagicLinksTable({ magicLinks }: MagicLinksTableProps) {
                         <div className="font-mono font-medium">
                           {link.bookingPlate}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-gray-700">
                           ID: {link.bookingId}
                         </div>
                       </div>
                     ) : (
-                      <span className="text-gray-400">Not used</span>
+                      <span className="text-gray-600">Not used</span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     <div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-700">
                         {formatDate(link.createdAt)}
                       </div>
-                      <div className="text-xs text-gray-400">
+                      <div className="text-xs text-gray-600">
                         by {link.createdByName}
                       </div>
                     </div>

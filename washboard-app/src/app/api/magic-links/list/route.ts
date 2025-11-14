@@ -86,8 +86,11 @@ export async function GET(request: NextRequest) {
         status = 'active';
       }
 
-      // Generate booking URL
-      const bookingUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/book/${link.branch_code}/${link.token}`;
+      // Generate booking URL dynamically from request headers (production-aware)
+      const protocol = request.headers.get('x-forwarded-proto') || 'http';
+      const host = request.headers.get('host') || 'localhost:3000';
+      const baseUrl = `${protocol}://${host}`;
+      const bookingUrl = `${baseUrl}/book/${link.branch_code}/${link.token}`;
 
       return {
         id: link.id,
