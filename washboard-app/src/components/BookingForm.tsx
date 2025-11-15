@@ -123,7 +123,7 @@ export default function BookingForm({ token, initialData, onSuccess }: BookingFo
             onBlur={validate}
             placeholder="ABC-1234"
             maxLength={20}
-            className={`w-full px-3 py-2 border rounded-md ${
+            className={`w-full px-3 py-2 border rounded-md text-gray-900 placeholder-gray-600 ${
               errors.plate ? 'border-red-500' : 'border-gray-300'
             }`}
           />
@@ -142,7 +142,7 @@ export default function BookingForm({ token, initialData, onSuccess }: BookingFo
             onBlur={validate}
             placeholder="Toyota"
             maxLength={50}
-            className={`w-full px-3 py-2 border rounded-md ${
+            className={`w-full px-3 py-2 border rounded-md text-gray-900 placeholder-gray-600 ${
               errors.vehicleMake ? 'border-red-500' : 'border-gray-300'
             }`}
           />
@@ -161,7 +161,7 @@ export default function BookingForm({ token, initialData, onSuccess }: BookingFo
             onBlur={validate}
             placeholder="Camry"
             maxLength={50}
-            className={`w-full px-3 py-2 border rounded-md ${
+            className={`w-full px-3 py-2 border rounded-md text-gray-900 placeholder-gray-600 ${
               errors.vehicleModel ? 'border-red-500' : 'border-gray-300'
             }`}
           />
@@ -184,7 +184,7 @@ export default function BookingForm({ token, initialData, onSuccess }: BookingFo
             onChange={(e) => handleChange('customerName', e.target.value)}
             placeholder="Your Name"
             maxLength={100}
-            className="w-full px-3 py-2 border border-gray-300 placeholder-gray-600 rounded-md"
+            className="w-full px-3 py-2 border border-gray-300 text-gray-900 placeholder-gray-600 rounded-md"
           />
         </div>
 
@@ -199,7 +199,7 @@ export default function BookingForm({ token, initialData, onSuccess }: BookingFo
             onChange={(e) => handleChange('customerMessenger', e.target.value)}
             placeholder="m.me/yourname or Facebook link"
             maxLength={255}
-            className="w-full px-3 py-2 border border-gray-300 placeholder-gray-600 rounded-md"
+            className="w-full px-3 py-2 border border-gray-300 text-gray-900 placeholder-gray-600 rounded-md"
           />
           <p className="text-xs text-gray-700 mt-1">
             We&apos;ll contact you via Messenger when your turn is coming
@@ -215,7 +215,7 @@ export default function BookingForm({ token, initialData, onSuccess }: BookingFo
             type="datetime-local"
             value={formData.preferredTime}
             onChange={(e) => handleChange('preferredTime', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 placeholder-gray-600 rounded-md"
+            className="w-full px-3 py-2 border border-gray-300 text-gray-900 placeholder-gray-600 rounded-md"
           />
           <p className="text-xs text-gray-700 mt-1">
             Optional - when you&apos;d like to arrive
@@ -232,7 +232,7 @@ export default function BookingForm({ token, initialData, onSuccess }: BookingFo
             onChange={(e) => handleChange('notes', e.target.value)}
             placeholder="Any special requests or notes"
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 placeholder-gray-600 rounded-md"
+            className="w-full px-3 py-2 border border-gray-300 text-gray-900 placeholder-gray-600 rounded-md"
           />
         </div>
       </div>
