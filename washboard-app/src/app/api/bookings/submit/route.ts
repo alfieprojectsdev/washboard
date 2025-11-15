@@ -151,12 +151,19 @@ export async function POST(request: NextRequest) {
       await client.query('BEGIN');
 
       // 6. Calculate queue position with lock
-      // FOR UPDATE prevents race conditions during position assignment
-      // Two concurrent requests will be serialized, preventing duplicate positions
-      const positionResult = await client.query(
-        `SELECT COUNT(*) as count FROM bookings
+      // Lock the bookings table first to prevent race conditions
+      // Note: We can't use FOR UPDATE with COUNT(*), so we lock by selecting rows first
+      await client.query(
+        `SELECT id FROM bookings
          WHERE branch_code = $1 AND status IN ('queued', 'in_service')
          FOR UPDATE`,
+        [branchCode]
+      );
+
+      // Now safely count the rows (already locked)
+      const positionResult = await client.query(
+        `SELECT COUNT(*) as count FROM bookings
+         WHERE branch_code = $1 AND status IN ('queued', 'in_service')`,
         [branchCode]
       );
 
