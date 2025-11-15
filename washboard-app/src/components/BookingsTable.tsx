@@ -180,7 +180,7 @@ export default function BookingsTable({
   if (bookings.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-        <p className="text-gray-500">No bookings found</p>
+        <p className="text-gray-700">No bookings found</p>
       </div>
     );
   }
@@ -191,25 +191,25 @@ export default function BookingsTable({
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Position
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Vehicle
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Plate
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Customer
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Status
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Wait Time
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -222,7 +222,7 @@ export default function BookingsTable({
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <div className="font-medium">{booking.vehicleMake}</div>
-                  <div className="text-gray-500">{booking.vehicleModel}</div>
+                  <div className="text-gray-700">{booking.vehicleModel}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
                   {booking.plate}
@@ -240,7 +240,7 @@ export default function BookingsTable({
                       💬
                     </a>
                   ) : booking.customerMessenger ? (
-                    <span className="ml-2 text-gray-400" title="Invalid messenger URL">
+                    <span className="ml-2 text-gray-600" title="Invalid messenger URL">
                       💬
                     </span>
                   ) : null}
@@ -254,7 +254,7 @@ export default function BookingsTable({
                     {booking.status.replace('_', ' ')}
                   </span>
                   {booking.cancelledReason && (
-                    <div className="text-xs text-gray-500 mt-1">
+                    <div className="text-xs text-gray-700 mt-1">
                       {booking.cancelledReason}
                     </div>
                   )}

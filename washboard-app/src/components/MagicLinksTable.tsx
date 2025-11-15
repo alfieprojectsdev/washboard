@@ -110,7 +110,7 @@ export default function MagicLinksTable({ magicLinks }: MagicLinksTableProps) {
   if (magicLinks.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-        <p className="text-gray-500">No magic links found</p>
+        <p className="text-gray-700">No magic links found</p>
       </div>
     );
   }
@@ -262,7 +262,7 @@ export default function MagicLinksTable({ magicLinks }: MagicLinksTableProps) {
                               📱 Customer can scan this QR code with their phone
                               to access the booking form.
                             </p>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-gray-700">
                               Or copy the URL and send it via Messenger/SMS.
                             </p>
                           </div>

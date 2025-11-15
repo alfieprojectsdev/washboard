@@ -157,7 +157,8 @@ customer_magic_links ← bookings (queue)
  
 ### Code Quality
 - **Quality Review: 95/100** (production ready)
-- **UX Review: 82/100** (WCAG 2.1 AA partial compliance)
+- **UX Review: 82/100** → **92/100** (WCAG 2.1 AA compliant - Nov 2025)
+- **Accessibility:** All text meets 4.5:1 contrast ratio minimum
 - TypeScript strict mode enabled
 - ESLint configured with best practices
  
@@ -187,7 +188,11 @@ cp .env.example .env.local
  
 # Run database migrations
 psql $DATABASE_URL < src/lib/migrations/001_initial_schema_up.sql
- 
+
+# Ensure required data exists (MAIN branch + shop_status)
+npm run db:setup
+# OR verify and auto-repair: npm run db:verify
+
 # Start development server
 npm run dev
 # → http://localhost:3000

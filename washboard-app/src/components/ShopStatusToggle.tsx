@@ -74,7 +74,7 @@ export default function ShopStatusToggle({
   if (!shopStatus) {
     return (
       <div className="bg-gray-100 rounded-lg p-4">
-        <p className="text-gray-500">Loading shop status...</p>
+        <p className="text-gray-700">Loading shop status...</p>
       </div>
     );
   }
@@ -110,7 +110,7 @@ export default function ShopStatusToggle({
               </div>
             )}
 
-            <div className="mt-3 ml-7 text-xs text-gray-500">
+            <div className="mt-3 ml-7 text-xs text-gray-700">
               Last updated: {new Date(shopStatus.updatedAt).toLocaleString()}
               {shopStatus.updatedByName && ` by ${shopStatus.updatedByName}`}
             </div>
