@@ -85,11 +85,11 @@ test.describe('Portfolio Screenshots - Washboard Production', () => {
     await page.click('button[type="submit"]');
 
     await page.waitForURL('**/dashboard');
-    await page.goto(`${PRODUCTION_URL}/dashboard?view=magic-links`);
+    await page.goto(`${PRODUCTION_URL}/dashboard/magic-links`);
 
     // Fill in form (but don't submit)
     await page.fill('input[placeholder="John Doe"]', 'Sample Customer');
-    await page.fill('input[placeholder="m.me/customer or Facebook link"]', 'm.me/samplecustomer');
+    await page.fill('input[placeholder="m.me/johndoe or fb.com/johndoe"]', 'm.me/samplecustomer');
 
     await page.screenshot({
       path: `${SCREENSHOTS_DIR}/05-magic-link-form-filled.png`,
@@ -147,26 +147,6 @@ test.describe('Portfolio Screenshots - Washboard Production', () => {
 
     await page.screenshot({
       path: `${SCREENSHOTS_DIR}/08-customer-booking-filled.png`,
-      fullPage: true
-    });
-  });
-
-  test('09 - Dashboard - All Bookings View', async ({ page }) => {
-    // Login
-    await page.goto(`${PRODUCTION_URL}/login`);
-    await page.fill('input[name="branchCode"]', RECEPTIONIST.branchCode);
-    await page.fill('input[name="username"]', RECEPTIONIST.username);
-    await page.fill('input[name="password"]', RECEPTIONIST.password);
-    await page.click('button[type="submit"]');
-
-    await page.waitForURL('**/dashboard');
-
-    // Click on "All" status filter
-    await page.click('button:has-text("All")');
-    await page.waitForLoadState('networkidle');
-
-    await page.screenshot({
-      path: `${SCREENSHOTS_DIR}/09-dashboard-all-bookings.png`,
       fullPage: true
     });
   });
