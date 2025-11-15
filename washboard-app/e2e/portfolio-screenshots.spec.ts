@@ -119,7 +119,7 @@ test.describe('Portfolio Screenshots - Washboard Production', () => {
 
   test('07 - Customer Booking Form (via magic link)', async ({ page }) => {
     // Use one of the test magic links from mock-seed.sql
-    const testToken = 'test-token-active-abc123';
+    const testToken = '89c9e0253de680ddd9b77fc5ebc22b59b041112c9938133714a8e3c8f7c767e66daa6cf0fdb33ea1cc663ce3a58d5e99b3efdcc64364eb1b564c95988d8c0346';
 
     await page.goto(`${PRODUCTION_URL}/book/MAIN/${testToken}`);
     await page.waitForLoadState('networkidle');
@@ -131,15 +131,15 @@ test.describe('Portfolio Screenshots - Washboard Production', () => {
   });
 
   test('08 - Customer Booking Form - Filled', async ({ page }) => {
-    const testToken = 'test-token-active-abc123';
+    const testToken = '89c9e0253de680ddd9b77fc5ebc22b59b041112c9938133714a8e3c8f7c767e66daa6cf0fdb33ea1cc663ce3a58d5e99b3efdcc64364eb1b564c95988d8c0346';
 
     await page.goto(`${PRODUCTION_URL}/book/MAIN/${testToken}`);
     await page.waitForLoadState('networkidle');
 
     // Fill in the booking form
-    await page.fill('input[placeholder="ABC1234"]', 'XYZ9876');
+    await page.fill('input[placeholder="ABC-1234"]', 'XYZ9876');
     await page.fill('input[placeholder="Toyota"]', 'Honda');
-    await page.fill('input[placeholder="Vios"]', 'Civic');
+    await page.fill('input[placeholder="Camry"]', 'Civic');
 
     // Scroll to form bottom
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
