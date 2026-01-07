@@ -1,6 +1,6 @@
 # 🚗 Washboard - Car Wash Queue Management System
  
-[![Tests](https://img.shields.io/badge/tests-130%2F130-success)](washboard-app/src/__tests__)
+[![Tests](https://img.shields.io/badge/tests-138%2F138-success)](washboard-app/src/__tests__)
 [![Security](https://img.shields.io/badge/security-94%2F100-brightgreen)](#security)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
@@ -120,6 +120,7 @@ customer_magic_links ← bookings (queue)
 - `GET /api/shop-status` - Check if accepting bookings
 - `POST /api/magic-links/validate` - Validate token before booking
 - `POST /api/bookings/submit` - Submit new booking
+- `GET /api/bookings/:id/status` - Get real-time booking status and position
  
 **Protected Endpoints** (receptionist auth required):
 - `POST /api/auth/signup|login|logout` - Session management
@@ -134,11 +135,11 @@ customer_magic_links ← bookings (queue)
 ## 📊 Quality Metrics
  
 ### Test Coverage
-- **130/130 tests passing** (100% pass rate)
-- **7 test suites** covering all critical flows
+- **138/138 tests passing** (100% pass rate)
+- **8 test suites** covering all critical flows
 - **~3-5 second** test execution time
 - **80%+ functional path coverage**
- 
+
 ```
 ✓ Database initialization (12 tests)
 ✓ Authentication routes (14 tests)
@@ -146,6 +147,7 @@ customer_magic_links ← bookings (queue)
 ✓ Magic link API routes (23 tests)
 ✓ Booking service (18 tests)
 ✓ Booking API routes (23 tests)
+✓ Booking status API (8 tests)
 ✓ Receptionist dashboard (22 tests)
 ```
  
