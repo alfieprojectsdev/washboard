@@ -31,7 +31,7 @@ export async function GET(
       );
     }
 
-    const bookingQuery = `
+    let bookingQuery = `
       SELECT 
         b.id,
         b.status,
@@ -43,10 +43,24 @@ export async function GET(
       JOIN branches br ON b.branch_code = br.branch_code
       WHERE b.id = $1
     `;
+    
+    let retryCount = 0;
+    const maxRetries = 2;
+    let result;
+    
+    while (retryCount < maxRetries) {
+      try {
+        result = await db.query(bookingQuery, [bookingId]);
+        if (result.rows.length > 0) break;
+      } catch (error) {
+        console.error(`Query attempt ${retryCount + 1} failed:`, error);
+        if (retryCount === maxRetries - 1) throw error;
+        retryCount++;
+        await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, retryCount)));
+      }
+    }
 
-    const result = await db.query(bookingQuery, [bookingId]);
-
-    if (result.rows.length === 0) {
+    if (!result || result.rows.length === 0) {
       return NextResponse.json(
         { error: 'Booking not found', code: 'BOOKING_NOT_FOUND' },
         { status: 404 }

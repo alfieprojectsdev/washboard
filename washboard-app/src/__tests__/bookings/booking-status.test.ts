@@ -131,6 +131,33 @@ describe('GET /api/bookings/:id/status', () => {
     });
   });
 
+  it('should handle database connection failures gracefully', async () => {
+    const { GET } = await import('@/app/api/bookings/[id]/status/route');
+    
+    const { default: db } = await import('@/lib/db');
+    const originalQuery = db.query;
+    const mockQuery = jest.fn()
+      .mockImplementationOnce(() => {
+        throw new Error('Connection failed');
+      })
+      .mockImplementationOnce(() => {
+        return { rows: [{ id: 1, status: 'queued', position: 1, branch_code: 'MAIN', created_at: new Date(), avg_service_minutes: 20 }] };
+      });
+    
+    db.query = mockQuery;
+    
+    const request = new Request('http://localhost:3000/api/bookings/1/status');
+    const params = Promise.resolve({ id: '1' });
+    
+    const response = await GET(request, { params });
+    
+    expect(response.status).toBe(200);
+    
+    const data = await response.json();
+    expect(data.status).toBe('queued');
+    expect(data.position).toBe(1);
+  });
+
   it('should return 400 for invalid booking ID format', async () => {
     const { GET } = await import('@/app/api/bookings/[id]/status/route');
     
