@@ -90,17 +90,17 @@ VALUES
   ('MAIN', NULL, 'DEF9012', 'Mitsubishi', 'Mirage', 'Lisa Tan', 'm.me/lisatan',
    NOW() + INTERVAL '3 hours', 'queued', 3, 'Interior and exterior'),
 
-  -- In service
+  -- In service (position 1 placeholder - not in queue)
   ('MAIN', NULL, 'GHI3456', 'Nissan', 'Almera', 'Roberto Santos', NULL,
-   NOW() - INTERVAL '30 minutes', 'in_service', 0, 'Express wash'),
+   NOW() - INTERVAL '30 minutes', 'in_service', 1, 'Express wash'),
 
-  -- Completed
+  -- Completed (position 1 placeholder - not in queue)
   ('MAIN', NULL, 'JKL7890', 'Mazda', '2', 'Carmen Reyes', 'm.me/carmenreyes',
-   NOW() - INTERVAL '2 hours', 'done', 0, NULL),
+   NOW() - INTERVAL '2 hours', 'done', 1, NULL),
 
-  -- Cancelled
+  -- Cancelled (position 1 placeholder - not in queue)
   ('MAIN', NULL, 'MNO1234', 'Suzuki', 'Swift', 'Diego Fernandez', 'm.me/diegof',
-   NOW() - INTERVAL '1 hour', 'cancelled', 0, 'No water supply'),
+   NOW() - INTERVAL '1 hour', 'cancelled', 1, 'No water supply'),
 
   -- DWTN01 branch bookings
   ('DWTN01', NULL, 'PQR5678', 'Ford', 'Ranger', 'Elena Castro', 'm.me/elenacastro',
