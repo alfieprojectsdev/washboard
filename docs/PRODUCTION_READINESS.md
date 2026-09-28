@@ -57,9 +57,9 @@ Hosted form services were considered and not used:
 
 Do these in order. Steps 1–3 are dashboard work only you can do.
 
-1. **Rotate the Neon password.** Neon Console → project → Branches → Roles →
+1. Rotate the Neon password: Neon Console → project → Branches → Roles →
    `neondb_owner` → Reset password. Copy the new pooled connection string.
-2. **Update env in Vercel** (Project → Settings → Environment Variables,
+2. Update env in Vercel (Project → Settings → Environment Variables,
    Production and Preview):
    - `DATABASE_URL` ← the new string
    - `NEXT_PUBLIC_APP_URL` ← `https://washboard.ithinkandicode.space`
@@ -69,7 +69,7 @@ Do these in order. Steps 1–3 are dashboard work only you can do.
 
    Update your local `washboard-app/.env.production` with the new
    `DATABASE_URL` too, and delete `SESSION_SECRET` there and in `.env.test`.
-3. **Apply migration 002** against production before merging (the feedback
+3. Apply migration 002 against production before merging (the feedback
    route needs the table):
    ```bash
    cd washboard-app
@@ -78,47 +78,47 @@ Do these in order. Steps 1–3 are dashboard work only you can do.
    ```
    If it fails on `idx_bookings_one_per_magic_link`, production already has a
    duplicated booking; the migration file has the query to find it.
-4. **Merge the PR.** Vercel deploys `main`.
-5. **Smoke test** on a phone:
+4. Merge the PR; Vercel deploys `main`.
+5. Smoke-test on a phone:
    `/api/health` → `{"ok":true}`; `/api/health?db=1` → `"db":"ok"`;
    log in; generate a link; open it on another phone and book; the success
    page should show the position and update within 10 s; mark the car done
    on the dashboard; send a feedback message and find it in the table.
-6. **Uptime monitor.** UptimeRobot's free plan (50 monitors, 5-minute checks,
+6. Add an uptime monitor. UptimeRobot's free plan (50 monitors, 5-minute checks,
    email alerts): add an HTTP monitor for
    `https://washboard.ithinkandicode.space/api/health`. Don't monitor
    `?db=1`: a check every 5 minutes would keep Neon's compute awake around the
    clock, and the free plan includes 100 compute-hours per month.
-7. **Optional:** rewrite git history to remove the old `.env`
+7. Optionally, rewrite git history to remove the old `.env`
    (`git filter-repo`). Once the password is rotated the leaked value is
    useless, so this is tidiness. It rewrites every commit hash and needs a
    force-push.
 
 ## Tradeoffs
 
-- **One shared invite code** rather than per-person invites or an admin
-  screen. It's one environment variable and closes the hole today. Anyone who
+- Signup uses one shared invite code rather than per-person invites or an
+  admin screen. It's one environment variable and closes the hole today. Anyone who
   learns the code while it is set can make an account, so set it only while
   onboarding and delete it afterwards.
-- **Magic link tokens are stored in plaintext.** Hashing them would stop a
+- Magic link tokens are stored in plaintext. Hashing them would stop a
   database leak from exposing unused links (valid 24 h), but the "Magic Links"
   page re-displays QR codes for active links, which needs the token.
-- **Customers mid-queue at deploy time lose live updates.** Their success-page
+- Customers mid-queue at deploy time lose live updates. Their success-page
   URLs have no `#t=` token, so polling stops (the page still shows their
   original position). New bookings are unaffected.
-- **The branch lock serialises every queue change in a branch.** At a car
+- The branch lock serialises every queue change in a branch. At a car
   wash's volume that is invisible; at hundreds of writes per second it would
   not be.
-- **Rate limits are per IP and fail open.** Receptionists behind one shop
+- Rate limits are per IP and fail open. Receptionists behind one shop
   Wi-Fi share a login budget (5 per 15 min). If the database errors, requests
   are allowed rather than blocking everyone.
-- **Vercel Hobby is "non-commercial, personal use only"** under Vercel's fair
+- Vercel Hobby is "non-commercial, personal use only" under Vercel's fair
   use guidelines. If the car wash is a paying client, move to Pro
   ($20/month) or another host.
-- **Neon's free plan suspends compute after 5 minutes idle.** The first
+- Neon's free plan suspends compute after 5 minutes idle. The first
   request after a quiet spell waits for it to wake; `/api/shop-status` took
   10.3 s on 2026-09-26.
-- **No Content-Security-Policy yet.** Next.js inline scripts need a
+- There is no Content-Security-Policy yet. Next.js inline scripts need a
   nonce-based CSP, which is more setup than the other headers.
 
 ## Not done
