@@ -49,7 +49,7 @@ describe('Session Management', () => {
         testUserData.userId,
         testUserData.branchCode,
         testUserData.username,
-        '$2b$12$test', // dummy hash
+        '$2b$10$abcdefghijklmnopqrstuuO3VbCmrfbHqX1bY7n6FhGZ9kqYyWf1bC', // dummy bcrypt-shaped hash
         testUserData.name,
         testUserData.email,
         testUserData.role,

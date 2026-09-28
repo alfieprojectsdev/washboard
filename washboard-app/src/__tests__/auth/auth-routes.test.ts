@@ -54,6 +54,7 @@ describe('Authentication API Routes', () => {
   describe('POST /api/auth/signup', () => {
     it('should create a new receptionist user with valid data', async () => {
       const requestBody = {
+        invite_code: 'test-invite-code',
         branch_code: 'MAIN',
         username: 'testuser',
         password: 'SecurePassword123!',
@@ -91,6 +92,7 @@ describe('Authentication API Routes', () => {
 
     it('should reject signup with password less than 12 characters', async () => {
       const requestBody = {
+        invite_code: 'test-invite-code',
         branch_code: 'MAIN',
         username: 'testuser2',
         password: 'short',
@@ -112,6 +114,7 @@ describe('Authentication API Routes', () => {
 
     it('should reject signup with invalid username format', async () => {
       const requestBody = {
+        invite_code: 'test-invite-code',
         branch_code: 'MAIN',
         username: 'test user!',
         password: 'SecurePassword123!',
@@ -133,6 +136,7 @@ describe('Authentication API Routes', () => {
     it('should reject duplicate username in same branch', async () => {
       // Create first user
       const requestBody = {
+        invite_code: 'test-invite-code',
         branch_code: 'MAIN',
         username: 'duplicateuser',
         password: 'SecurePassword123!',
@@ -161,6 +165,7 @@ describe('Authentication API Routes', () => {
 
     it('should reject signup with invalid email format', async () => {
       const requestBody = {
+        invite_code: 'test-invite-code',
         branch_code: 'MAIN',
         username: 'testuser3',
         password: 'SecurePassword123!',
@@ -182,6 +187,7 @@ describe('Authentication API Routes', () => {
 
     it('should reject signup with non-existent branch', async () => {
       const requestBody = {
+        invite_code: 'test-invite-code',
         branch_code: 'NONEXISTENT',
         username: 'testuser4',
         password: 'SecurePassword123!',

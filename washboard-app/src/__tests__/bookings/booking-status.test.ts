@@ -1,112 +1,77 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { NextRequest } from 'next/server';
 import db from '@/lib/db';
+import { GET } from '@/app/api/bookings/[id]/status/route';
+
+const HASH = '$2b$10$abcdefghijklmnopqrstuuO3VbCmrfbHqX1bY7n6FhGZ9kqYyWf1bC';
+
+let tokenCounter = 0;
+
+/** Insert a booking created through a (used) magic link; returns id and token. */
+async function createBooking(status: string, position: number) {
+  const token = `status-test-${++tokenCounter}-`.padEnd(128, 'x');
+  const user = await db.query(
+    `INSERT INTO users (branch_code, username, password_hash, name)
+     VALUES ('MAIN', $1, $2, 'Status Tester')
+     ON CONFLICT (branch_code, username) DO UPDATE SET name = EXCLUDED.name
+     RETURNING user_id`,
+    ['statustester', HASH]
+  );
+  const link = await db.query(
+    `INSERT INTO customer_magic_links (branch_code, token, expires_at, used_at, created_by)
+     VALUES ('MAIN', $1, NOW() + INTERVAL '1 day', NOW(), $2) RETURNING id`,
+    [token, user.rows[0].user_id]
+  );
+  const booking = await db.query(
+    `INSERT INTO bookings (branch_code, magic_link_id, plate, vehicle_make, vehicle_model, customer_name, status, position)
+     VALUES ('MAIN', $1, 'ABC123', 'Toyota', 'Camry', 'John Doe', $2, $3) RETURNING id`,
+    [link.rows[0].id, status, position]
+  );
+  return { id: String(booking.rows[0].id), token };
+}
+
+function get(id: string, token?: string) {
+  const url = new URL(`http://localhost:3000/api/bookings/${id}/status`);
+  if (token) url.searchParams.set('token', token);
+  return GET(new NextRequest(url), { params: Promise.resolve({ id }) });
+}
 
 describe('GET /api/bookings/:id/status', () => {
   beforeEach(async () => {
     await db.query('DELETE FROM bookings');
-    await db.query('DELETE FROM branches');
-    await db.query('DELETE FROM users');
-    
-    await db.query(
-      'INSERT INTO branches (branch_code, branch_name, avg_service_minutes) VALUES ($1, $2, $3)',
-      ['MAIN', 'Test Branch', 20]
-    );
+    await db.query('DELETE FROM customer_magic_links');
+    await db.query(`UPDATE branches SET avg_service_minutes = 20 WHERE branch_code = 'MAIN'`);
   });
 
-  it('should return current queue position for queued booking', async () => {
-    const bookingResult = await db.query(`
-      INSERT INTO bookings (branch_code, plate, vehicle_make, vehicle_model, customer_name, status, position)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING *
-    `, ['MAIN', 'ABC123', 'Toyota', 'Camry', 'John Doe', 'queued', 3]);
-
-    const booking = bookingResult.rows[0];
-    
-    const { GET } = await import('@/app/api/bookings/[id]/status/route');
-    
-    const request = new Request(`http://localhost:3000/api/bookings/${booking.id}/status`);
-    const params = Promise.resolve({ id: booking.id.toString() });
-    
-    const response = await GET(request, { params });
+  it('returns position and estimated wait for a queued booking', async () => {
+    const { id, token } = await createBooking('queued', 3);
+    const response = await get(id, token);
     const data = await response.json();
-    
-    expect(data).toMatchObject({
-      status: 'queued',
-      position: 3,
-      inService: false,
-      estimatedWaitMinutes: 40,
-    });
+
+    expect(response.status).toBe(200);
+    expect(data).toMatchObject({ status: 'queued', position: 3, inService: false, estimatedWaitMinutes: 40 });
     expect(data.queuedAt).toBeDefined();
   });
 
-  it('should return in_service status when booking is being serviced', async () => {
-    const bookingResult = await db.query(`
-      INSERT INTO bookings (branch_code, plate, vehicle_make, vehicle_model, customer_name, status, position)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING *
-    `, ['MAIN', 'ABC123', 'Toyota', 'Camry', 'John Doe', 'in_service', 1]);
-
-    const booking = bookingResult.rows[0];
-    
-    const { GET } = await import('@/app/api/bookings/[id]/status/route');
-    
-    const request = new Request(`http://localhost:3000/api/bookings/${booking.id}/status`);
-    const params = Promise.resolve({ id: booking.id.toString() });
-    
-    const response = await GET(request, { params });
-    const data = await response.json();
-    
-    expect(data).toEqual({
+  it('returns in_service, done and cancelled states', async () => {
+    const inService = await createBooking('in_service', 1);
+    expect(await (await get(inService.id, inService.token)).json()).toEqual({
       status: 'in_service',
       position: null,
       inService: true,
       estimatedWaitMinutes: 0,
     });
-  });
 
-  it('should return done status when booking is completed', async () => {
-    const bookingResult = await db.query(`
-      INSERT INTO bookings (branch_code, plate, vehicle_make, vehicle_model, customer_name, status, position)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING *
-    `, ['MAIN', 'ABC123', 'Toyota', 'Camry', 'John Doe', 'done', 1]);
-
-    const booking = bookingResult.rows[0];
-    
-    const { GET } = await import('@/app/api/bookings/[id]/status/route');
-    
-    const request = new Request(`http://localhost:3000/api/bookings/${booking.id}/status`);
-    const params = Promise.resolve({ id: booking.id.toString() });
-    
-    const response = await GET(request, { params });
-    const data = await response.json();
-    
-    expect(data).toEqual({
+    const done = await createBooking('done', 2);
+    expect(await (await get(done.id, done.token)).json()).toEqual({
       status: 'done',
       position: null,
       inService: false,
       completed: true,
     });
-  });
 
-  it('should return cancelled status when booking is cancelled', async () => {
-    const bookingResult = await db.query(`
-      INSERT INTO bookings (branch_code, plate, vehicle_make, vehicle_model, customer_name, status, position)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING *
-    `, ['MAIN', 'ABC123', 'Toyota', 'Camry', 'John Doe', 'cancelled', 1]);
-
-    const booking = bookingResult.rows[0];
-    
-    const { GET } = await import('@/app/api/bookings/[id]/status/route');
-    
-    const request = new Request(`http://localhost:3000/api/bookings/${booking.id}/status`);
-    const params = Promise.resolve({ id: booking.id.toString() });
-    
-    const response = await GET(request, { params });
-    const data = await response.json();
-    
-    expect(data).toEqual({
+    const cancelled = await createBooking('cancelled', 3);
+    expect(await (await get(cancelled.id, cancelled.token)).json()).toEqual({
       status: 'cancelled',
       position: null,
       inService: false,
@@ -114,100 +79,39 @@ describe('GET /api/bookings/:id/status', () => {
     });
   });
 
-  it('should return 404 for non-existent booking', async () => {
-    const { GET } = await import('@/app/api/bookings/[id]/status/route');
-    
-    const request = new Request('http://localhost:3000/api/bookings/99999/status');
-    const params = Promise.resolve({ id: '99999' });
-    
-    const response = await GET(request, { params });
-    
+  it('returns 404 promptly for a booking that does not exist', async () => {
+    // Regression: this used to loop forever re-querying the database.
+    const started = Date.now();
+    const response = await get('99999', 'x'.repeat(128));
     expect(response.status).toBe(404);
-    
-    const data = await response.json();
-    expect(data).toEqual({
-      error: 'Booking not found',
-      code: 'BOOKING_NOT_FOUND',
-    });
+    expect(await response.json()).toEqual({ error: 'Booking not found', code: 'BOOKING_NOT_FOUND' });
+    expect(Date.now() - started).toBeLessThan(5000);
   });
 
-  it('should handle database connection failures gracefully', async () => {
-    const { GET } = await import('@/app/api/bookings/[id]/status/route');
-    
-    const { default: db } = await import('@/lib/db');
-    const originalQuery = db.query;
-    const mockQuery = jest.fn()
-      .mockImplementationOnce(() => {
-        throw new Error('Connection failed');
-      })
-      .mockImplementationOnce(() => {
-        return { rows: [{ id: 1, status: 'queued', position: 1, branch_code: 'MAIN', created_at: new Date(), avg_service_minutes: 20 }] };
-      });
-    
-    db.query = mockQuery;
-    
-    const request = new Request('http://localhost:3000/api/bookings/1/status');
-    const params = Promise.resolve({ id: '1' });
-    
-    const response = await GET(request, { params });
-    
-    expect(response.status).toBe(200);
-    
-    const data = await response.json();
-    expect(data.status).toBe('queued');
-    expect(data.position).toBe(1);
+  it("refuses to show another customer's booking (wrong token)", async () => {
+    const mine = await createBooking('queued', 1);
+    const theirs = await createBooking('queued', 2);
+    const response = await get(theirs.id, mine.token);
+    expect(response.status).toBe(404);
   });
 
-  it('should return 400 for invalid booking ID format', async () => {
-    const { GET } = await import('@/app/api/bookings/[id]/status/route');
-    
-    const request = new Request('http://localhost:3000/api/bookings/invalid/status');
-    const params = Promise.resolve({ id: 'invalid' });
-    
-    const response = await GET(request, { params });
-    
+  it('requires a token', async () => {
+    const { id } = await createBooking('queued', 1);
+    const response = await get(id);
     expect(response.status).toBe(400);
-    
-    const data = await response.json();
-    expect(data).toEqual({
-      error: 'Invalid booking ID format',
-      code: 'INVALID_BOOKING_ID',
-    });
+    expect((await response.json()).code).toBe('INVALID_TOKEN');
   });
 
-  it('should calculate estimated wait time correctly', async () => {
-    await db.query(
-      'UPDATE branches SET avg_service_minutes = 15 WHERE branch_code = $1',
-      ['MAIN']
-    );
+  it('returns 400 for an invalid booking ID', async () => {
+    const response = await get('invalid', 'x'.repeat(128));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Invalid booking ID format', code: 'INVALID_BOOKING_ID' });
+  });
 
-    const bookingResult = await db.query(`
-      INSERT INTO bookings (branch_code, plate, vehicle_make, vehicle_model, customer_name, status, position)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING *
-    `, ['MAIN', 'ABC123', 'Toyota', 'Camry', 'John Doe', 'queued', 5]);
-
-    const booking = bookingResult.rows[0];
-    
-    const { GET } = await import('@/app/api/bookings/[id]/status/route');
-    
-    const request = new Request(`http://localhost:3000/api/bookings/${booking.id}/status`);
-    const params = Promise.resolve({ id: booking.id.toString() });
-    
-    const response = await GET(request, { params });
-    const data = await response.json();
-    
+  it('uses the branch average service time', async () => {
+    await db.query(`UPDATE branches SET avg_service_minutes = 15 WHERE branch_code = 'MAIN'`);
+    const { id, token } = await createBooking('queued', 5);
+    const data = await (await get(id, token)).json();
     expect(data.estimatedWaitMinutes).toBe(60);
-  });
-
-  it('should handle CORS preflight requests', async () => {
-    const { OPTIONS } = await import('@/app/api/bookings/[id]/status/route');
-    
-    const response = await OPTIONS();
-    
-    expect(response.status).toBe(200);
-    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
-    expect(response.headers.get('Access-Control-Allow-Methods')).toBe('GET, OPTIONS');
-    expect(response.headers.get('Access-Control-Allow-Headers')).toBe('Content-Type');
   });
 });

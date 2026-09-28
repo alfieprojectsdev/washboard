@@ -7,6 +7,7 @@ import Link from 'next/link';
 export default function SignupPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
+    inviteCode: '',
     branchCode: 'MAIN',
     username: '',
     password: '',
@@ -44,6 +45,7 @@ export default function SignupPage() {
           password: formData.password,
           name: formData.name,
           email: formData.email || undefined,
+          invite_code: formData.inviteCode,
         }),
       });
 
@@ -70,7 +72,7 @@ export default function SignupPage() {
             Create Receptionist Account
           </h2>
           <p className="mt-2 text-center text-sm text-gray-800">
-            Sign up to start managing your car wash queue
+            You need an invite code from the shop owner to create an account.
           </p>
         </div>
 
@@ -82,6 +84,25 @@ export default function SignupPage() {
           )}
 
           <div className="rounded-md shadow-sm space-y-4">
+            <div>
+              <label htmlFor="inviteCode" className="block text-sm font-medium text-gray-900 mb-1">
+                Invite code
+              </label>
+              <input
+                id="inviteCode"
+                name="inviteCode"
+                type="text"
+                required
+                autoComplete="off"
+                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                placeholder="From the shop owner"
+                value={formData.inviteCode}
+                onChange={(e) =>
+                  setFormData({ ...formData, inviteCode: e.target.value })
+                }
+              />
+            </div>
+
             <div>
               <label htmlFor="branchCode" className="block text-sm font-medium text-gray-900 mb-1">
                 Branch Code

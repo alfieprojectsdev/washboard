@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { isAuthenticated } from '@/lib/auth/session';
+import { getAppBaseUrl } from '@/lib/app-url';
 
 /**
  * GET /api/magic-links/list
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
       WHERE ml.branch_code = $1
     `;
 
-    const params: any[] = [branchCode];
+    const params: unknown[] = [branchCode];
 
     // 4. Apply status filtering
     if (statusFilter === 'active') {
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
     const result = await db.query(query, params);
 
     // 6. Format results
-    const magicLinks = result.rows.map((link: any) => {
+    const magicLinks = result.rows.map((link) => {
       const now = new Date();
       const expiresAt = new Date(link.expires_at);
       const isExpired = expiresAt < now;
@@ -86,10 +87,8 @@ export async function GET(request: NextRequest) {
         status = 'active';
       }
 
-      // Generate booking URL dynamically from request headers (production-aware)
-      const protocol = request.headers.get('x-forwarded-proto') || 'http';
-      const host = request.headers.get('host') || 'localhost:3000';
-      const baseUrl = `${protocol}://${host}`;
+      // NEXT_PUBLIC_APP_URL, or the request's host in local dev
+      const baseUrl = getAppBaseUrl(request);
       const bookingUrl = `${baseUrl}/book/${link.branch_code}/${link.token}`;
 
       return {

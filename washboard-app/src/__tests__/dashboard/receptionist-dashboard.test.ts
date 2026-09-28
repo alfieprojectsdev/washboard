@@ -148,11 +148,11 @@ describe('Phase 5: Receptionist Dashboard', () => {
       expect(data.bookings).toHaveLength(2);
 
       // First in queue (position 1) should have 0 wait time
-      const firstBooking = data.bookings.find((b: any) => b.position === 1);
+      const firstBooking = data.bookings.find((b: { position: number }) => b.position === 1);
       expect(firstBooking.estimatedWaitMinutes).toBe(0);
 
       // Second in queue (position 4) should have (4-1) * 20 = 60 minutes
-      const secondBooking = data.bookings.find((b: any) => b.position === 4);
+      const secondBooking = data.bookings.find((b: { position: number }) => b.position === 4);
       expect(secondBooking.estimatedWaitMinutes).toBe(60);
     });
 

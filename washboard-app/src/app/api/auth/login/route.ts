@@ -8,6 +8,7 @@ import {
   getSessionIdFromRequest,
   setSessionCookie,
   SessionData,
+  cleanupExpiredSessions,
 } from '@/lib/auth/session';
 
 /**
@@ -109,6 +110,10 @@ export async function POST(request: NextRequest) {
     const oldSessionId = getSessionIdFromRequest(request);
     const newSessionId = await regenerateSession(oldSessionId, userData);
 
+    // Nothing else deletes expired sessions (there is no cron), so sweep them
+    // here. Logins are rare and the DELETE uses idx_session_expire.
+    await cleanupExpiredSessions().catch((err) => console.error('Session cleanup failed:', err));
+
     // Create response with user data
     const response = NextResponse.json(
       { success: true, user: userData },
@@ -119,7 +124,7 @@ export async function POST(request: NextRequest) {
     setSessionCookie(response, newSessionId);
 
     return response;
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Login error:', err);
 
     // Don't expose internal error details to client

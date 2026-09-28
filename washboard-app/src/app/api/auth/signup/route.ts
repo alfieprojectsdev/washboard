@@ -1,22 +1,43 @@
 // src/app/api/auth/signup/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash, timingSafeEqual } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import db from '@/lib/db';
 import { applyRateLimit, signupLimiter } from '@/lib/auth/rate-limit';
 
 /**
  * POST /api/auth/signup
- * Create new receptionist account
+ * Create a receptionist account. Invite-only.
  *
- * P0 Security Features:
- * - Rate limiting: 3 attempts per hour per IP
- * - Password strength validation (12 chars minimum)
- * - bcrypt hashing (saltRounds=12)
- * - Input validation
- * - Duplicate detection per branch
+ * Until 2026-09-26 anyone who guessed the branch code ("MAIN" is the default
+ * and was prefilled on the form) could create an account and read every
+ * customer's name, plate and Messenger handle. Signup now also requires
+ * invite_code to match the SIGNUP_INVITE_CODE environment variable; with the
+ * variable unset, signup is closed. The owner sets a code, shares it with the
+ * new receptionist, and changes or removes it afterwards.
+ *
+ * Also: 3 attempts per hour per IP (which also limits invite-code guessing),
+ * 12-character minimum password, bcrypt cost 12, unique username per branch.
  */
+function inviteCodeMatches(supplied: unknown): boolean {
+  const expected = process.env.SIGNUP_INVITE_CODE;
+  if (!expected || typeof supplied !== 'string') {
+    return false;
+  }
+  // Hash both sides so the comparison is constant-time regardless of length.
+  const a = createHash('sha256').update(supplied).digest();
+  const b = createHash('sha256').update(expected).digest();
+  return timingSafeEqual(a, b);
+}
+
 export async function POST(request: NextRequest) {
-  // P0 Security: Apply rate limiting (3 attempts per hour)
+  if (!process.env.SIGNUP_INVITE_CODE) {
+    return NextResponse.json(
+      { error: 'Signup is closed. Ask the shop owner for an invite code.', code: 'SIGNUP_CLOSED' },
+      { status: 403 }
+    );
+  }
+
   const rateLimitResult = await applyRateLimit(request, signupLimiter, 'signup');
   if (rateLimitResult) {
     return rateLimitResult;
@@ -24,7 +45,14 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { branch_code, username, password, name, email } = body;
+    const { branch_code, username, password, name, email, invite_code } = body;
+
+    if (!inviteCodeMatches(invite_code)) {
+      return NextResponse.json(
+        { error: 'Invalid invite code', code: 'INVALID_INVITE' },
+        { status: 403 }
+      );
+    }
 
     // Validate required fields
     if (!branch_code || !username || !password || !name) {

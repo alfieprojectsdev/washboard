@@ -46,7 +46,7 @@ describe('Magic Link System', () => {
       `INSERT INTO users (user_id, branch_code, username, password_hash, name, role)
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT DO NOTHING`,
-      [TEST_USER_ID, 'MAIN', 'testuser', '$2b$12$test', 'Test User', 'receptionist']
+      [TEST_USER_ID, 'MAIN', 'testuser', '$2b$10$abcdefghijklmnopqrstuuO3VbCmrfbHqX1bY7n6FhGZ9kqYyWf1bC', 'Test User', 'receptionist']
     );
   });
 
@@ -298,7 +298,8 @@ describe('Magic Link System', () => {
           [link.token]
         );
 
-        expect(result.rows[0].booking_id).toBe(bookingId);
+        // BIGINT columns come back from node-postgres as strings.
+        expect(Number(result.rows[0].booking_id)).toBe(bookingId);
       });
 
       it('should not throw error for non-existent token', async () => {

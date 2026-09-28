@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     clearSessionCookie(response);
 
     return response;
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Logout error:', err);
 
     // Even if there's an error, we should still clear the cookie

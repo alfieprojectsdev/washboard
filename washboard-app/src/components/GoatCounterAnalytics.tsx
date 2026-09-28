@@ -6,7 +6,8 @@ import { useEffect } from 'react';
 declare global {
   interface Window {
     goatcounter?: {
-      count: (options: {
+      path?: (defaultPath: string) => string;
+      count?: (options: {
         path: string;
         title?: string;
         event?: boolean;
@@ -14,6 +15,16 @@ declare global {
       }) => void;
     };
   }
+}
+
+/**
+ * Booking URLs look like /book/MAIN/<128-char token>. GoatCounter records the
+ * page path by default, which would copy live booking tokens into the
+ * analytics dashboard. Count those pages as /book/MAIN/[link] and drop query
+ * strings everywhere.
+ */
+function redactedPath(): string {
+  return window.location.pathname.replace(/^(\/book\/[^/]+\/)[^/]+/, '$1[link]');
 }
 
 export default function GoatCounterAnalytics() {
@@ -26,6 +37,9 @@ export default function GoatCounterAnalytics() {
 
     // Check if script already exists
     if (document.querySelector('script[data-goatcounter]')) return;
+
+    // Settings must exist before count.js loads.
+    window.goatcounter = { ...window.goatcounter, path: redactedPath };
 
     // Inject GoatCounter script
     const script = document.createElement('script');
@@ -52,7 +66,7 @@ export default function GoatCounterAnalytics() {
  * @param data - Optional additional data (note: GoatCounter doesn't directly support custom data, but can be encoded in the path)
  */
 export function trackEvent(name: string, data?: Record<string, unknown>) {
-  if (typeof window === 'undefined' || !window.goatcounter) {
+  if (typeof window === 'undefined' || !window.goatcounter?.count) {
     return;
   }
 

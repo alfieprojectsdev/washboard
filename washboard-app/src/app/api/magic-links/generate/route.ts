@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth/session';
-import { ensureBranchAccess } from '@/lib/auth/middleware';
+import { getCurrentUser, ensureBranchAccess } from '@/lib/auth/session';
+import { getAppBaseUrl } from '@/lib/app-url';
 import { generateMagicLink } from '@/lib/magic-links/utils';
 import { generateQRCode, QR_SIZE_NORMAL } from '@/lib/magic-links/qr-code';
 
@@ -118,27 +118,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Optional: Validate Messenger format if provided
-    // Basic validation - check if it's a valid string
-    if (customerMessenger && typeof customerMessenger !== 'string') {
+    // 4. Optional fields. The messenger pattern mirrors the valid_messenger
+    // CHECK constraint, so a bad value is a 400 here instead of a 500 from the DB.
+    if (customerName && (typeof customerName !== 'string' || customerName.length > 100)) {
+      return NextResponse.json(
+        { error: 'Customer name must be at most 100 characters', code: 'INVALID_NAME' },
+        { status: 400 }
+      );
+    }
+    if (
+      customerMessenger &&
+      (typeof customerMessenger !== 'string' ||
+        !/^(https?:\/\/)?(m\.me|fb\.com|facebook\.com)\/[A-Za-z0-9._-]+$/i.test(customerMessenger))
+    ) {
       return NextResponse.json(
         {
-          error: 'Invalid customerMessenger format',
+          error: 'Messenger must look like m.me/username or fb.com/username',
           code: 'INVALID_MESSENGER',
         },
         { status: 400 }
       );
     }
 
-    // 5. Generate base URL from request headers (production-aware)
-    const protocol = request.headers.get('x-forwarded-proto') || 'http';
-    const host = request.headers.get('host') || 'localhost:3000';
-    const baseUrl = `${protocol}://${host}`;
-
-    // Debug logging (remove after verification)
-    console.log('[Magic Link Generation] Protocol:', protocol);
-    console.log('[Magic Link Generation] Host:', host);
-    console.log('[Magic Link Generation] Base URL:', baseUrl);
+    // 5. Base URL: NEXT_PUBLIC_APP_URL if set, otherwise the request's host
+    const baseUrl = getAppBaseUrl(request);
 
     // 6. Generate magic link
     const link = await generateMagicLink({
@@ -151,7 +154,8 @@ export async function POST(request: NextRequest) {
 
     // 7. Generate QR code
     const qrCode = await generateQRCode(link.url, {
-      size: qrSize || QR_SIZE_NORMAL,
+      // Clamped: an unbounded size lets any logged-in user make the server render a huge PNG.
+      size: Math.min(Math.max(Number(qrSize) || QR_SIZE_NORMAL, 100), 1000),
     });
 
     // 8. Return success response

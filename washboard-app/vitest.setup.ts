@@ -1,16 +1,4 @@
 // vitest.setup.ts
-import { beforeAll, afterAll } from 'vitest';
-
-beforeAll(async () => {
-  // Set environment for testing
-  process.env.USE_MOCK_DB = 'true';
-  // NODE_ENV is automatically set by Vitest
-
-  console.log('🧪 Test environment initialized');
-  console.log('   Using pg-mem (mock database)');
-});
-
-afterAll(async () => {
-  // Cleanup if needed
-  console.log('✅ Test environment cleaned up');
-});
+// The database is provided by src/__tests__/helpers/test-db.ts (see the alias in
+// vitest.config.ts). Signup is invite-only; give tests a known invite code.
+process.env.SIGNUP_INVITE_CODE = process.env.SIGNUP_INVITE_CODE || 'test-invite-code';

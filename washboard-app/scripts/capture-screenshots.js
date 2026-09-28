@@ -65,7 +65,7 @@ async function initializeDatabase() {
  * Seed test data via API calls
  *
  * Note: Requires DATABASE_URL environment variable for production databases,
- * or USE_MOCK_DB=true for pg-mem in-memory database for testing.
+ * (the old USE_MOCK_DB pg-mem mode was removed on 2026-09-26).
  * If database is not available, uses placeholder tokens for portfolio screenshots.
  */
 async function seedTestData(browser) {

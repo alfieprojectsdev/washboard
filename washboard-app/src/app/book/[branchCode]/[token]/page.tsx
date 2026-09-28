@@ -25,7 +25,9 @@ export default function BookingPage() {
 
   const handleSuccess = (bookingId: number, position: number) => {
     // Navigate to success page with booking info
-    router.push(`/book/success?booking=${bookingId}&position=${position}`);
+    // Token goes in the fragment: the success page needs it to poll this
+    // booking's status, and fragments are never sent to the server.
+    router.push(`/book/success?booking=${bookingId}&position=${position}#t=${token}`);
   };
 
   useEffect(() => {
