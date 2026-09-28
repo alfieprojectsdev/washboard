@@ -1,45 +1,36 @@
-# Database Migrations
+# Database migrations
 
-## Overview
-This directory contains SQL migration scripts for the Washboard database schema.
+Numbered SQL files applied in order by `scripts/migrate.mjs`, which records
+each one in the `schema_migrations` table. Every file is written to be safe to
+re-run (`IF NOT EXISTS`, `DROP ... IF EXISTS`, `ON CONFLICT DO NOTHING`).
 
-## Migration Files
+| File | What it does |
+|------|--------------|
+| `001_initial_schema.sql` | Tables from the November 2025 launch. Re-running it on the production database changes nothing. |
+| `002_feedback_and_queue_integrity.sql` | `feedback` table; unique index so a magic link can create at most one booking. |
 
-- `001_initial_schema_up.sql` - Initial schema creation
-- `001_initial_schema_down.sql` - Rollback initial schema
+## Apply
 
-## Running Migrations
-
-### Development (pg-mem)
-Migrations are applied automatically when using mock database.
-
-### Production (NeonDB)
-
-**Apply migration (up)**:
 ```bash
-psql $DATABASE_URL -f src/lib/migrations/001_initial_schema_up.sql
+# from washboard-app/
+DATABASE_URL="postgres://…" npm run db:migrate            # apply pending
+DATABASE_URL="postgres://…" npm run db:migrate -- --status
 ```
 
-**Rollback migration (down)**:
-```bash
-psql $DATABASE_URL -f src/lib/migrations/001_initial_schema_down.sql
-```
+Or put `DATABASE_URL` in `.env.local` and run
+`node --env-file=.env.local scripts/migrate.mjs`. No `psql` needed.
 
-## Migration Naming Convention
+Apply migrations **before** deploying code that depends on them. For 002 that
+means: run the migration, then merge/deploy.
 
-Format: `XXX_description_[up|down].sql`
-- `XXX`: Sequential number (001, 002, 003...)
-- `description`: Brief description (snake_case)
-- `up`: Apply changes
-- `down`: Rollback changes
+## Tests
 
-## Safety
+The test suite applies these same files to PGlite (Postgres compiled to WASM)
+for every test file, so a migration that doesn't parse or violates its own
+constraints fails `npm test`.
 
-- Always test migrations on development database first
-- **NEVER run down migrations on production without backup**
-- Down migrations will **DELETE ALL DATA**
-- Use transactions (BEGIN/COMMIT) for safety
+## Rolling back
 
-## Version Tracking
-
-Current schema version is tracked in the `schema_version` table.
+`down/001_initial_schema_down.sql` drops every table and **deletes all data**.
+There is no down file for 002; to undo it, `DROP TABLE feedback` and
+`DROP INDEX idx_bookings_one_per_magic_link`.

@@ -4,14 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Washboard is a production-ready car wash queue management system built with Next.js 14, PostgreSQL, and TypeScript. It replaces manual pen-and-paper queue management with a modern, contactless digital solution using magic links and QR codes.
+Washboard is a car wash queue management system built with Next.js 16, PostgreSQL, and TypeScript. Receptionists hand customers single-use magic links (QR codes); customers book and watch their queue position.
 
-**Key Characteristics:**
-- Real-world production application deployed at washboard.ithinkandicode.space
-- Security-first architecture (94/100 security audit score)
-- 130/130 tests passing with fast execution (~3-5 seconds)
-- WCAG 2.1 AA accessibility compliant
-- Uses NeonDB serverless PostgreSQL in production
+- Deployed at washboard.ithinkandicode.space (Vercel + Neon)
+- Receptionist signup is invite-only (`SIGNUP_INVITE_CODE`)
+- 153 tests, run against PGlite (real Postgres in WASM)
+- Audit findings, deploy runbook and tradeoffs: `docs/PRODUCTION_READINESS.md`
 
 ## Common Commands
 
@@ -32,7 +30,7 @@ npm run lint
 
 ### Testing
 ```bash
-# Run all tests (uses pg-mem, no real database needed)
+# Run all tests (PGlite in-process Postgres, no database server needed)
 npm test
 
 # Watch mode for test-driven development
@@ -50,14 +48,11 @@ npx playwright test
 
 ### Database Operations
 ```bash
-# Apply schema migration
-psql $DATABASE_URL < src/lib/migrations/001_initial_schema_up.sql
+# Apply pending migrations (src/lib/migrations/*.sql, tracked in schema_migrations)
+DATABASE_URL=... npm run db:migrate
 
-# Setup required data (MAIN branch + shop_status)
-npm run db:setup
-
-# Verify database setup and auto-repair if needed
-npm run db:verify
+# List applied/pending without changing anything
+DATABASE_URL=... npm run db:migrate -- --status
 ```
 
 ### Building for Production
@@ -91,7 +86,7 @@ The codebase follows a clean layered architecture:
 3. **Database Layer** (`src/lib/db.ts`) - Data access
    - Single PostgreSQL connection pool
    - Type-safe query helper
-   - Supports both real PostgreSQL and pg-mem for testing
+   - Production only; tests alias `@/lib/db` to `src/__tests__/helpers/test-db.ts` (PGlite)
 
 ### Database Schema Design
 
@@ -109,10 +104,10 @@ customer_magic_links ← bookings (queue)
 
 **Critical Design Patterns:**
 
-- **Transaction Safety**: Position updates use SERIALIZABLE isolation level to prevent race conditions
-- **Indexed Queries**: All performance-critical queries use proper indexes (`branch_code`, `status`, `position`)
-- **Timing-Safe Comparisons**: Magic link token validation uses timing-safe comparison to prevent timing attacks
-- **Automatic Timestamps**: `updated_at` columns use database triggers (only in real PostgreSQL, not pg-mem)
+- Queue invariant: active bookings (queued, in_service) in a branch hold positions 1..N with no gaps or duplicates. Every queue write runs in a transaction that first calls `lockBranchQueue()` (`src/lib/bookings/queue.ts`, a `FOR UPDATE` on the branch row).
+- Magic links are single-use because the submit route claims them with `UPDATE ... WHERE used_at IS NULL AND expires_at > NOW() RETURNING id`; a unique index on `bookings(magic_link_id)` backs this up. Never check-then-update in two statements.
+- The tenant (`branch_code`) always comes from the session, never from request input.
+- `updated_at` columns are maintained by triggers.
 
 ### Authentication & Session Management
 
@@ -164,17 +159,17 @@ Customer-facing booking confirmation page uses lightweight polling:
 
 ### Testing Strategy
 
-**Unit + Integration Tests with pg-mem:**
+**Unit + Integration Tests with PGlite:**
 
-- All tests run against in-memory PostgreSQL (pg-mem) for speed and isolation
-- No external dependencies, tests run completely offline
-- Schema automatically loaded and filtered for pg-mem compatibility
-- Tests are organized by feature: `auth/`, `magic-links/`, `bookings/`, `dashboard/`
+- `vitest.config.ts` aliases `@/lib/db` to `src/__tests__/helpers/test-db.ts`, which applies the real migration files to PGlite (Postgres compiled to WASM). Constraints, triggers and `ON CONFLICT` all behave as on Neon.
+- PGlite has one connection, so the shim serialises access like a one-connection pool. While a route holds `db.connect()`, it must use only that client; calling `db.query()` inside the transaction deadlocks the test (and would use a second connection in production).
+- Fixtures must satisfy the constraints, e.g. `password_hash` must be 60 chars (use a bcrypt-shaped string).
+- BIGINT columns come back as strings, as with node-postgres.
+- Tests are organized by feature: `auth/`, `magic-links/`, `bookings/`, `dashboard/`, plus `production-hardening.test.ts`
 
 **Key Testing Patterns:**
 ```typescript
-// Tests automatically use pg-mem via USE_MOCK_DB=true in vitest.config.ts
-import db from '@/lib/db'; // Automatically uses pg-mem in tests
+import db from '@/lib/db'; // PGlite in tests
 
 // Clean state between tests
 beforeEach(async () => {
@@ -276,9 +271,9 @@ For operations that modify multiple rows or require atomicity:
 const client = await db.connect();
 try {
   await client.query('BEGIN');
-  await client.query('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+  await lockBranchQueue(client, branchCode); // serialises queue writes for the branch
 
-  // Perform queries
+  // Perform queries (on `client` only, never `db.query` inside the transaction)
   await client.query('UPDATE bookings SET position = position + 1 WHERE ...');
   await client.query('UPDATE bookings SET position = $1 WHERE id = $2', [newPos, id]);
 
@@ -295,11 +290,14 @@ try {
 
 **Required:**
 - `DATABASE_URL` - PostgreSQL connection string
-- `SESSION_SECRET` - 32+ character random string (generate with `openssl rand -base64 32`)
+- `NEXT_PUBLIC_APP_URL` - canonical site URL for magic links (production)
 
 **Optional:**
+- `SIGNUP_INVITE_CODE` - enables receptionist signup; unset = closed
+- `FEEDBACK_WEBHOOK_URL` - Discord webhook for feedback notifications
 - `NEXT_PUBLIC_GOATCOUNTER_CODE` - Analytics tracking code
-- `USE_MOCK_DB=true` - Use pg-mem instead of real database (auto-set in tests)
+
+(`SESSION_SECRET` and `USE_MOCK_DB` are no longer read by anything.)
 
 **Never commit .env.local** - Use .env.example as template
 
@@ -307,32 +305,13 @@ try {
 
 ### Adding a New Migration
 
-1. Create numbered migration files in `src/lib/migrations/`:
-   - `00X_description_up.sql` - Apply changes
-   - `00X_description_down.sql` - Rollback changes
-
-2. Update `src/lib/schema.sql` with the full schema (single source of truth)
-
-3. Apply migration:
-   ```bash
-   psql $DATABASE_URL < src/lib/migrations/00X_description_up.sql
-   ```
-
-4. Update tests if schema changes affect test data
-
-### pg-mem Compatibility
-
-The test database (pg-mem) doesn't support all PostgreSQL features. The `src/lib/db.ts` file automatically filters out unsupported features when loading the schema:
-
-- CREATE TRIGGER and trigger functions
-- CREATE EXTENSION
-- COMMENT ON statements
-- Regex constraints (~, ~*)
-- LENGTH() function in CHECK constraints
-
-If adding new database features, ensure they're either:
-1. Supported by pg-mem, or
-2. Filtered out in the schema loading logic
+1. Add `src/lib/migrations/00X_description.sql`. Make it re-runnable
+   (`IF NOT EXISTS`, `DROP ... IF EXISTS`, `ON CONFLICT DO NOTHING`); the
+   migrations are the only schema source (there is no separate schema.sql).
+2. `npm test` applies it to PGlite, and `schema.test.ts` re-runs every file
+   to prove it is re-runnable.
+3. Apply to production **before** deploying code that needs it:
+   `DATABASE_URL=... npm run db:migrate`.
 
 ## Deployment
 
@@ -367,9 +346,9 @@ If adding new database features, ensure they're either:
 
 **Queue Position:**
 - Positions are 1-indexed integers
-- Must be unique per branch + status combination
-- Gaps in positions are allowed but should be avoided
-- Position reordering requires SERIALIZABLE transaction isolation
+- Active bookings (queued + in_service) in a branch hold exactly 1..N: no gaps, no duplicates
+- Done/cancelled bookings keep their last position number but are out of the queue
+- Every queue write holds the branch lock (`lockBranchQueue`)
 
 **Magic Link Token:**
 - Must be exactly 128 characters
