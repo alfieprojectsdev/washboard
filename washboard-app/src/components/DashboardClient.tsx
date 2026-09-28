@@ -223,12 +223,26 @@ export default function DashboardClient({ user, branch }: DashboardClientProps) 
               </p>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => router.push('/dashboard/magic-links')}
                 className="px-4 py-2 text-sm text-blue-700 hover:text-blue-900 hover:bg-blue-50 rounded-md transition font-medium"
               >
                 🔗 Magic Links
+              </button>
+              {user.role === 'admin' && (
+                <button
+                  onClick={() => router.push('/dashboard/staff')}
+                  className="px-4 py-2 text-sm text-blue-700 hover:text-blue-900 hover:bg-blue-50 rounded-md transition font-medium"
+                >
+                  👥 Staff
+                </button>
+              )}
+              <button
+                onClick={() => router.push('/dashboard/account')}
+                className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md transition"
+              >
+                Account
               </button>
               <button
                 onClick={handleLogout}

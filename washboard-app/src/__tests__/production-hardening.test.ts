@@ -86,29 +86,29 @@ beforeEach(async () => {
   });
 });
 
-describe('invite-only signup', () => {
+describe('owner setup signup', () => {
   const body = {
     branch_code: 'MAIN',
     username: 'invited',
     password: 'a-long-enough-password',
-    name: 'New Receptionist',
+    name: 'Shop Owner',
   };
-  const original = process.env.SIGNUP_INVITE_CODE;
+  const original = process.env.OWNER_SETUP_CODE;
   afterEach(() => {
-    process.env.SIGNUP_INVITE_CODE = original;
+    process.env.OWNER_SETUP_CODE = original;
   });
 
-  it('is closed when SIGNUP_INVITE_CODE is not set', async () => {
-    delete process.env.SIGNUP_INVITE_CODE;
-    const response = await signup(json('http://localhost/api/auth/signup', { ...body, invite_code: 'anything' }));
+  it('is closed when OWNER_SETUP_CODE is not set', async () => {
+    delete process.env.OWNER_SETUP_CODE;
+    const response = await signup(json('http://localhost/api/auth/signup', { ...body, setup_code: 'anything' }));
     expect(response.status).toBe(403);
     expect((await response.json()).code).toBe('SIGNUP_CLOSED');
   });
 
-  it('rejects a wrong or missing invite code', async () => {
-    const wrong = await signup(json('http://localhost/api/auth/signup', { ...body, invite_code: 'guess' }));
+  it('rejects a wrong or missing setup code', async () => {
+    const wrong = await signup(json('http://localhost/api/auth/signup', { ...body, setup_code: 'guess' }));
     expect(wrong.status).toBe(403);
-    expect((await wrong.json()).code).toBe('INVALID_INVITE');
+    expect((await wrong.json()).code).toBe('INVALID_SETUP_CODE');
 
     const missing = await signup(json('http://localhost/api/auth/signup', body));
     expect(missing.status).toBe(403);
@@ -117,11 +117,13 @@ describe('invite-only signup', () => {
     expect(created.rows).toHaveLength(0);
   });
 
-  it('creates the account with the right code', async () => {
+  it('creates an admin account with the right code and logs it in', async () => {
     const response = await signup(
-      json('http://localhost/api/auth/signup', { ...body, invite_code: process.env.SIGNUP_INVITE_CODE })
+      json('http://localhost/api/auth/signup', { ...body, setup_code: process.env.OWNER_SETUP_CODE })
     );
     expect(response.status).toBe(201);
+    expect((await response.json()).user.role).toBe('admin');
+    expect(response.headers.get('set-cookie')).toContain(SESSION_COOKIE_NAME);
   });
 });
 

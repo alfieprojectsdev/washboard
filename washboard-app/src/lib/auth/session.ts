@@ -131,10 +131,11 @@ export async function getUserBySessionId(sessionId: string | null | undefined): 
     const result = await db.query(
       `SELECT user_id, branch_code, username, name, email, role
        FROM users
-       WHERE user_id = $1`,
+       WHERE user_id = $1 AND disabled_at IS NULL`,
       [sessionData.userId]
     );
 
+    // Deleted, or access removed by an admin: end the session now.
     if (result.rows.length === 0) {
       await destroySession(sessionId);
       return null;
@@ -172,6 +173,34 @@ export async function isAuthenticated(
   return sessionData
     ? { authenticated: true, session: sessionData }
     : { authenticated: false, session: null };
+}
+
+/**
+ * Log a user in on this response: fresh session ID (the old one, if any, is
+ * destroyed), cookie set, last_login_at updated. Used by login, invite
+ * signup, owner setup and password reset.
+ */
+export async function startSession(request: NextRequest, response: NextResponse, user: SessionData): Promise<void> {
+  const sessionId = await regenerateSession(getSessionIdFromRequest(request), user);
+  setSessionCookie(response, sessionId);
+  await db.query('UPDATE users SET last_login_at = NOW() WHERE user_id = $1', [user.userId]);
+}
+
+/**
+ * For admin-only API routes: the logged-in admin, or the 401/403 response to
+ * return. Admins manage their own branch only.
+ */
+export async function requireAdmin(
+  request: NextRequest
+): Promise<{ admin: SessionData; denied?: undefined } | { admin?: undefined; denied: NextResponse }> {
+  const user = await getCurrentUser(request);
+  if (!user) {
+    return { denied: NextResponse.json({ error: 'Unauthorized', code: 'NOT_AUTHENTICATED' }, { status: 401 }) };
+  }
+  if (user.role !== 'admin') {
+    return { denied: NextResponse.json({ error: 'Only the shop owner can do this', code: 'FORBIDDEN' }, { status: 403 }) };
+  }
+  return { admin: user };
 }
 
 /** Receptionists may only act on their own branch. */

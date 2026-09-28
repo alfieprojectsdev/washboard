@@ -7,8 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Washboard is a car wash queue management system built with Next.js 16, PostgreSQL, and TypeScript. Receptionists hand customers single-use magic links (QR codes); customers book and watch their queue position.
 
 - Deployed at washboard.ithinkandicode.space (Vercel + Neon)
-- Receptionist signup is invite-only (`SIGNUP_INVITE_CODE`)
-- 153 tests, run against PGlite (real Postgres in WASM)
+- Accounts are invite-only. The shop owner (role `admin`) invites staff and
+  resets their passwords from `/dashboard/staff`; the first admin is created at
+  `/signup` with `OWNER_SETUP_CODE`
+- 166 tests, run against PGlite (real Postgres in WASM)
 - Audit findings, deploy runbook and tradeoffs: `docs/PRODUCTION_READINESS.md`
 
 ## Common Commands
@@ -114,8 +116,16 @@ customer_magic_links ← bookings (queue)
 - **Session-based auth** with PostgreSQL-backed storage (survives server restarts)
 - **Session regeneration** on login prevents session fixation attacks
 - **Cookie settings**: httpOnly, secure (production), sameSite: 'lax'
-- **Rate limiting**: Login (5/15min), Signup (3/hour) per IP
+- **Rate limiting**: Login (5/15min), owner setup signup (3/hour), invite signup (10/hour), password reset (10/15min) per IP; change password (5/15min) per user
 - **Password hashing**: bcrypt with cost factor 12 (~250ms per hash)
+- **Removed accounts** (`users.disabled_at` set) can't log in, and `getUserBySessionId` ignores their sessions. Rows are never deleted because bookings and magic links refer to them.
+
+**Staff accounts (migration 003):**
+- `account_tokens` holds invite and reset tokens, SHA-256 hashed. The raw token is shown once to the admin and travels in the URL fragment (`/signup#invite=…`, `/reset-password#token=…`), then in the POST body. Invites last 7 days, resets 24 hours.
+- Claim tokens with `claimAccountToken()` (one conditional `UPDATE … WHERE used_at IS NULL AND expires_at > NOW() RETURNING`), inside the transaction that uses them.
+- Staff changes (`PATCH /api/staff/:userId`) lock the branch row, then re-check that the actor is still an active admin. A branch always keeps one active admin (`LAST_ADMIN`), and nobody changes their own role or access.
+- A password reset or removal deletes the user's sessions; changing your own password deletes your other sessions.
+- Recovery when no admin can log in: `DATABASE_URL=... node scripts/make-admin.mjs MAIN <username>`.
 
 **Session Flow:**
 1. User logs in via `/api/auth/login`
@@ -132,11 +142,18 @@ customer_magic_links ← bookings (queue)
 - `POST /api/bookings/submit` - Submit new booking
 - `GET /api/bookings/:id/status` - Get real-time booking status and position
 
+**Public auth endpoints** (the password, invite/reset token or setup code is the credential; all rate-limited):
+- `/api/auth/signup`, `/api/auth/token-check`, `/api/auth/reset-password`, `/api/auth/login`
+
 **Protected Endpoints** (receptionist auth required):
-- Authentication: `/api/auth/signup|login|logout`
+- Authentication: `/api/auth/logout`, `/api/auth/change-password`
 - Magic Links: `/api/magic-links/generate|list`
 - Queue Management: `/api/bookings` (GET), `/api/bookings/:id` (PATCH)
 - Shop Control: `/api/shop-status` (POST)
+
+**Admin Endpoints** (`requireAdmin()`, 403 for receptionists):
+- `GET /api/staff`, `POST /api/staff/invites`, `DELETE /api/staff/invites/:id`
+- `PATCH /api/staff/:userId`, `POST /api/staff/:userId/reset-link`
 
 **Standard Response Format:**
 ```typescript
@@ -222,7 +239,7 @@ This ensures magic links use the correct domain in production vs development.
 
 **Password Security:**
 - bcrypt hashing with cost factor 12
-- Minimum 8 characters enforced in UI and backend
+- New passwords need 12 to 200 characters (`passwordProblem()` in `src/lib/auth/validation.ts`)
 - Database constraint: `password_hash` >= 60 characters
 - Generic error messages prevent username enumeration
 
@@ -293,7 +310,7 @@ try {
 - `NEXT_PUBLIC_APP_URL` - canonical site URL for magic links (production)
 
 **Optional:**
-- `SIGNUP_INVITE_CODE` - enables receptionist signup; unset = closed
+- `OWNER_SETUP_CODE` - lets someone create an admin account at `/signup`; set it only while creating the first owner, then delete it. Staff join through invite links whether or not it is set.
 - `FEEDBACK_WEBHOOK_URL` - Discord webhook for feedback notifications
 - `NEXT_PUBLIC_GOATCOUNTER_CODE` - Analytics tracking code
 
@@ -310,8 +327,11 @@ try {
    migrations are the only schema source (there is no separate schema.sql).
 2. `npm test` applies it to PGlite, and `schema.test.ts` re-runs every file
    to prove it is re-runnable.
-3. Apply to production **before** deploying code that needs it:
-   `DATABASE_URL=... npm run db:migrate`.
+3. Production gets it automatically: `npm run build` runs
+   `scripts/migrate.mjs --vercel` first, which applies pending migrations
+   only when `VERCEL_ENV=production` (preview and local builds skip it). A
+   failed migration fails the build, so the previous deployment stays live.
+   Keep migrations backward-compatible with the code that is still running.
 
 ## Deployment
 
@@ -333,9 +353,10 @@ try {
    - Customer booking flow works
 
 **Database migrations in production:**
-- Run migrations manually against production database before deploying code
+- Applied by the production build (see above). Vercel's Build Command must stay
+  the default (`npm run build`) for this to happen.
 - Ensure migrations are backward-compatible with currently deployed code
-- Test migrations against staging database first
+- `DATABASE_URL=... npm run db:migrate -- --status` shows what is applied
 
 ## Important Constraints
 

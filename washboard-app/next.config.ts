@@ -17,13 +17,13 @@ const nextConfig: NextConfig = {
     return [
       { source: '/:path*', headers: securityHeaders },
       // Token-bearing pages: keep them out of search engines and shared caches.
-      {
-        source: '/book/:path*',
+      ...['/book/:path*', '/signup', '/reset-password'].map((source) => ({
+        source,
         headers: [
           { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
           { key: 'Cache-Control', value: 'no-store' },
         ],
-      },
+      })),
     ];
   },
 };

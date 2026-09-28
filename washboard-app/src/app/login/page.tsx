@@ -129,14 +129,14 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <div className="text-center text-sm">
-            <span className="text-gray-800">Don&apos;t have an account? </span>
-            <Link
-              href="/signup"
-              className="font-medium text-blue-600 hover:text-blue-500"
-            >
-              Sign up
-            </Link>
+          <div className="space-y-2 text-center text-sm text-gray-800">
+            <p>Forgot your password? Ask the shop owner to send you a reset link.</p>
+            <p>
+              New staff join through an invite link from the shop owner.{' '}
+              <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500">
+                Setting up the shop?
+              </Link>
+            </p>
           </div>
         </form>
       </div>
