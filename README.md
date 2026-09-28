@@ -8,7 +8,26 @@ queued → in service → done from a dashboard.
 Live: [washboard.ithinkandicode.space](https://washboard.ithinkandicode.space)
 (Vercel + Neon Postgres).
 
-![Dashboard](washboard-app/portfolio-screenshots/03-dashboard-queue.png)
+![Receptionist dashboard: shop status, the queue with wait estimates, and start/cancel/reorder actions](docs/screenshots/dashboard-queue.png)
+
+## Screens
+
+The receptionist generates a single-use booking link and shows its QR code:
+
+![Magic link with its QR code expanded](docs/screenshots/magic-link-qr.png)
+
+The customer scans it, books, and watches their place in the queue (polled
+every 10 seconds). The Feedback button is on every page; receptionist signup
+needs the owner's invite code.
+
+<p>
+  <img src="docs/screenshots/customer-booking-form.png" width="200" alt="Customer booking form opened from the QR code">
+  <img src="docs/screenshots/customer-queue-status.png" width="200" alt="Live queue position and estimated wait">
+  <img src="docs/screenshots/feedback-dialog.png" width="200" alt="Feedback dialog">
+  <img src="docs/screenshots/invite-only-signup.png" width="200" alt="Receptionist signup asking for an invite code">
+</p>
+
+Screenshots are from a local run on 2026-09-29 with made-up customers.
 
 ## How it works
 
