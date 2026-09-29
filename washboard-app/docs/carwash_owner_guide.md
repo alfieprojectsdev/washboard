@@ -10,9 +10,10 @@
 2. [How It Replaces Pen and Paper](#how-it-replaces-pen-and-paper)
 3. [Getting Started](#getting-started)
 4. [Daily Operations](#daily-operations)
-5. [Common Scenarios](#common-scenarios)
-6. [Troubleshooting](#troubleshooting)
-7. [Tips for Success](#tips-for-success)
+5. [Staff Accounts](#staff-accounts)
+6. [Common Scenarios](#common-scenarios)
+7. [Troubleshooting](#troubleshooting)
+8. [Tips for Success](#tips-for-success)
 
 ---
 
@@ -86,6 +87,20 @@ Washboard is a **browser-based queue management system** that replaces your pape
    
    ⚠️ **Keep these safe!** Anyone with these can access your queue.
 
+### Your account and your staff's accounts
+
+There is no public sign-up page. Nobody can make an account without you.
+
+Your own account is an **admin** account. If you had an account before
+September 2026, your developer switches it to admin for you; if you had none,
+your developer gives you a setup code to create it at `/signup`.
+
+Everyone else joins from an **invite link** that you create on the Staff page
+(see [Staff Accounts](#staff-accounts)). They pick their own username and
+password, so you never have to know or pass on anyone's password. Give each
+person their own invite rather than sharing one login: you can then remove one
+person's access without changing everyone's password.
+
 ### What You'll See
 
 After logging in, you'll see the **Dashboard** with:
@@ -93,7 +108,7 @@ After logging in, you'll see the **Dashboard** with:
 - **Shop Status Toggle** - Open/Closed button (top)
 - **Queue Tabs** - Queued, In Service, Done, Cancelled
 - **Bookings Table** - List of all cars
-- **Navigation** - Link to Magic Links page
+- **Navigation** - Magic Links, Staff (admins only), Account and Logout
 
 ---
 
@@ -174,6 +189,61 @@ Your dashboard shows all bookings in tabs:
 
 ---
 
+## Staff Accounts
+
+Admins see a **👥 Staff** button in the dashboard's top navigation.
+Receptionists don't; they can only change their own password.
+
+### Inviting a new staff member
+
+1. Click **👥 Staff**
+2. Under **Invite someone**, type who it's for, e.g. "Rico, weekend shift"
+   (optional, but it helps you tell invites apart)
+3. Pick a role: **Receptionist**, or **Admin (can manage staff)** for someone
+   who should also manage accounts
+4. Click **Create invite link**
+5. Send the link by Messenger or SMS, or let them scan the QR code
+
+The link works once and expires after 7 days. It's shown only once, so send
+it straight away; if you lose it, revoke it and create a new one. When they
+open it they choose a username and a password of at least 12 characters, and
+they're logged in.
+
+Unused invites are listed under **Waiting to be used**. Click **Revoke** on
+any you no longer need, for example if you sent one to the wrong person.
+
+### When someone forgets their password
+
+1. Click **👥 Staff**
+2. Find them under **Accounts** and click **Reset password**
+3. Send them the link that appears
+
+The link works once, for 24 hours. They choose a new password, and any other
+phone or computer they were logged in on is logged out. You never see their
+password.
+
+### When someone leaves
+
+Click **Remove access** next to their name. They're logged out immediately
+and can't log in again. Their name stays on the bookings they handled.
+**Restore access** undoes it.
+
+### Changing roles
+
+**Make admin** and **Make receptionist** switch someone's role. A few rules
+keep you from locking yourself out:
+
+- You can't change your own role or remove your own access; another admin
+  has to do it.
+- The last active admin can't be removed or made a receptionist.
+
+### Changing your own password
+
+Click **Account** in the top navigation, then fill in **Change password**.
+This works for everyone, not only admins. Your other devices are logged out.
+
+---
+
 ## Common Scenarios
 
 ### Scenario 1: Customer Arrives Early
@@ -238,7 +308,22 @@ Your dashboard shows all bookings in tabs:
 - ✓ Password is correct? (case-sensitive)
 - ✓ Internet connection working?
 
+**Forgot the password?** A staff member asks you (or another admin) for a
+reset link from the Staff page. If you're the only admin and you've forgotten
+yours, contact your developer.
+
 **If still stuck:** Contact your developer.
+
+### "The invite link doesn't work"
+
+It says "expired or was already used" when it's more than 7 days old, has
+been used, or was revoked. Create a new one on the Staff page. If the person
+already made an account with it, they should log in instead.
+
+### "I don't see the Staff button"
+
+Only admins see it. Ask another admin to click **Make admin** next to your
+name, or ask your developer if there's no other admin.
 
 ### "Booking disappeared from queue"
 
@@ -286,8 +371,11 @@ Your dashboard shows all bookings in tabs:
 3. How to handle cancellations (always select correct reason)
 4. How to close/reopen shop properly
 
+**Give each receptionist their own account** with an invite link from the
+Staff page, and remove their access on their last day.
+
 **Create a cheat sheet** with:
-- Login credentials
+- The login address and branch code (not passwords)
 - "Generate Magic Link" steps (with screenshots)
 - Common scenarios and solutions
 
@@ -316,7 +404,8 @@ Your dashboard shows all bookings in tabs:
 - ✅ Backup any important customer data
 
 **Monthly:**
-- ✅ Change your password
+- ✅ Check the Staff page: remove access for anyone who has left, and
+  anyone whose "Last login" you don't recognise
 - ✅ Review system performance with developer
 - ✅ Suggest improvements based on usage
 
@@ -329,6 +418,8 @@ Your dashboard shows all bookings in tabs:
 - ✅ Logout from public devices (internet cafes)
 
 **DON'T:**
+- ❌ Share one login between staff (invite each person instead)
+- ❌ Post invite or reset links in group chats; send them to the one person
 - ❌ Share your password with customers
 - ❌ Leave dashboard open on customer-facing screens
 - ❌ Use same password for other websites
@@ -346,7 +437,8 @@ Print and laminate this:
 WASHBOARD QUICK REFERENCE
 
 LOGIN: https://washboard.ithinkandicode.space
-Branch: MAIN | User: [your-user] | Pass: [your-pass]
+Branch: MAIN | User: [your-user]
+(Don't write the password on this card.)
 
 CUSTOMER ARRIVES:
 1. Magic Links → Generate
@@ -362,6 +454,9 @@ MANAGE QUEUE:
 CLOSE SHOP: Click "Close Shop" → Select reason
 
 OPEN SHOP: Click "Reopen Shop"
+
+STAFF (admins): Staff → Create invite link
+FORGOT PASSWORD: ask an admin for a reset link
 
 HELP: Contact [developer name/number]
 ```
@@ -390,7 +485,7 @@ Washboard replaces your **paper logbook** with a **digital queue system** that:
 
 ---
 
-**Document Version:** 1.0 (November 2025)  
+**Document Version:** 1.1 (September 2026: staff accounts, invite-only signup)  
 **For technical documentation, see:** `washboard-app/README.md`  
 **System Status:** ✅ Production Ready  
 **Live System:** https://washboard.ithinkandicode.space
