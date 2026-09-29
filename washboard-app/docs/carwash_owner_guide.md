@@ -154,7 +154,12 @@ Your dashboard shows all bookings in tabs:
 
 **Actions you can take:**
 - **Start** - Move car to "In Service" when washing begins
-- **Cancel** - Remove booking (must select reason)
+- **Cancel** - Remove booking. You must pick a reason:
+  - Customer no-show
+  - Customer cancelled
+  - Duplicate booking
+  - Shop closed unexpectedly
+  - Other
 - **↑ Move Up** - Prioritize a customer
 - **↓ Move Down** - Delay a customer
 
@@ -305,7 +310,9 @@ This works for everyone, not only admins. Your other devices are logged out.
 2. Select reason: "Power outage" or "Water supply issue"
 3. **Contact customers**: click the 💬 next to each name to message them
    (only customers who left a Messenger handle have one)
-4. When resolved: Click **"Reopen Shop"**
+4. If you can't wash the cars already in the queue, cancel each booking
+   with reason "Shop closed unexpectedly"
+5. When resolved: Click **"Reopen Shop"**
 
 ---
 
@@ -458,7 +465,10 @@ CUSTOMER ARRIVES:
 MANAGE QUEUE:
 - Start = Begin washing
 - Complete = Finished
-- Cancel = No-show (select reason)
+- Cancel = Remove booking, then pick a reason
+  (Customer no-show, Customer cancelled,
+  Duplicate booking, Shop closed unexpectedly,
+  Other)
 - Move Up/Down = Change order
 
 CLOSE SHOP: Click "Close Shop" → Select reason
