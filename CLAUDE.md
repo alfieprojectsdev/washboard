@@ -326,12 +326,20 @@ try {
    (`IF NOT EXISTS`, `DROP ... IF EXISTS`, `ON CONFLICT DO NOTHING`); the
    migrations are the only schema source (there is no separate schema.sql).
 2. `npm test` applies it to PGlite, and `schema.test.ts` re-runs every file
-   to prove it is re-runnable.
+   to prove it is re-runnable. `src/__tests__/database/migrate.test.ts`
+   covers the runner itself (`scripts/migrate-core.mjs` and the
+   `scripts/migrate.mjs` CLI): bookkeeping, rollback on failure and the
+   production-only gate.
 3. Production gets it automatically: `npm run build` runs
    `scripts/migrate.mjs --vercel` first, which applies pending migrations
    only when `VERCEL_ENV=production` (preview and local builds skip it). A
    failed migration fails the build, so the previous deployment stays live.
-   Keep migrations backward-compatible with the code that is still running.
+   Add tables and columns; drop or rename something only once no deployed
+   code uses it.
+4. Tests only see an empty database. Before merging a new migration, it needs
+   a dry run on a Neon branch of production (steps in
+   `docs/PRODUCTION_READINESS.md`, "Changing the schema after launch"). Neon
+   access is Alfie's: ask Alfie to run it and paste the output.
 
 ## Deployment
 

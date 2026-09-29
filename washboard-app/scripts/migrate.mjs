@@ -13,15 +13,10 @@
 // a pull request can never change the production database.
 //
 // Each file runs in its own transaction and is recorded in schema_migrations.
-// Files are written to be re-runnable, so applying 001 to the database that
-// already has the November 2025 schema is a no-op.
-import { readdir, readFile } from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+// The migration logic is in migrate-core.mjs; src/__tests__/database/migrate.test.ts
+// covers both files.
 import pg from 'pg';
-
-const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'lib', 'migrations');
-const statusOnly = process.argv.includes('--status');
+import { migrate } from './migrate-core.mjs';
 
 if (process.argv.includes('--vercel') && process.env.VERCEL_ENV !== 'production') {
   console.log('migrate: skipped (not a Vercel production build)');
@@ -37,37 +32,7 @@ const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await client.connect();
 
 try {
-  await client.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
-    name TEXT PRIMARY KEY,
-    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  )`);
-
-  const files = (await readdir(dir)).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
-  const applied = new Set((await client.query('SELECT name FROM schema_migrations')).rows.map((r) => r.name));
-
-  for (const file of files) {
-    if (applied.has(file)) {
-      console.log(`  applied  ${file}`);
-      continue;
-    }
-    if (statusOnly) {
-      console.log(`  pending  ${file}`);
-      continue;
-    }
-    const sql = await readFile(path.join(dir, file), 'utf8');
-    await client.query('BEGIN');
-    try {
-      await client.query(sql);
-      await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [file]);
-      await client.query('COMMIT');
-      console.log(`  ran      ${file}`);
-    } catch (err) {
-      await client.query('ROLLBACK');
-      console.error(`  FAILED   ${file}: ${err.message}`);
-      process.exitCode = 1;
-      break;
-    }
-  }
+  if (!(await migrate(client, { statusOnly: process.argv.includes('--status') }))) process.exitCode = 1;
 } finally {
   await client.end();
 }
