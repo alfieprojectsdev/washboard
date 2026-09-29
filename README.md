@@ -97,14 +97,15 @@ invite a receptionist from Dashboard → Staff.
 ## Checks
 
 ```bash
-npm test            # 166 tests, PGlite, no DB server needed
+npm test            # 199 tests, PGlite, no DB server needed
 npm run typecheck
 npx eslint src
 npm run build
 ```
 
-GitHub Actions runs all four on every push and pull request
-(`.github/workflows/ci.yml`).
+GitHub Actions is turned off for this repo, so run all four locally before
+merging. `.github/workflows/ci.yml` runs them again if Actions is turned
+back on.
 
 ## Deploying
 
