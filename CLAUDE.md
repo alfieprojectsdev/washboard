@@ -10,7 +10,7 @@ Washboard is a car wash queue management system built with Next.js 16, PostgreSQ
 - Accounts are invite-only. The shop owner (role `admin`) invites staff and
   resets their passwords from `/dashboard/staff`; the first admin is created at
   `/signup` with `OWNER_SETUP_CODE`
-- 166 tests, run against PGlite (real Postgres in WASM)
+- 199 tests, run against PGlite (real Postgres in WASM)
 - Audit findings, deploy runbook and tradeoffs: `docs/PRODUCTION_READINESS.md`
 
 ## Common Commands
