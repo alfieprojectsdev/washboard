@@ -276,7 +276,7 @@ describe('Phase 5: Receptionist Dashboard', () => {
         method: 'PATCH',
         body: JSON.stringify({
           status: 'cancelled',
-          cancelledReason: 'Power outage',
+          cancelledReason: 'Customer no-show',
         }),
         headers: {
           'content-type': 'application/json',
@@ -291,7 +291,7 @@ describe('Phase 5: Receptionist Dashboard', () => {
 
       expect(response.status).toBe(200);
       expect(data.booking.status).toBe('cancelled');
-      expect(data.booking.cancelledReason).toBe('Power outage');
+      expect(data.booking.cancelledReason).toBe('Customer no-show');
       expect(data.booking.cancelledBy).toBe(testUserId);
       expect(data.booking.cancelledAt).toBeDefined();
     });

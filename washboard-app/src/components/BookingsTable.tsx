@@ -66,15 +66,14 @@ interface BookingsTableProps {
   ) => Promise<{ success: boolean; error?: string }>;
 }
 
+// Reasons for cancelling one booking. Shop-wide closure reasons live in
+// ShopStatusToggle.tsx. The column is free text, so older rows may hold other values.
 const CANCEL_REASONS = [
-  'Full queue / No available slots',
-  'Under maintenance',
-  'Power outage',
-  'Water supply issue',
-  'Staff shortage',
-  'Weather interruption',
-  'Closed early',
-  'Holiday / Special event',
+  'Customer no-show',
+  'Customer cancelled',
+  'Duplicate booking',
+  'Shop closed unexpectedly',
+  'Other',
 ];
 
 export default function BookingsTable({
