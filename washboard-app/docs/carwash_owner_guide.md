@@ -37,7 +37,7 @@ Washboard is a **browser-based queue management system** that replaces your pape
 - ✅ A 💬 Messenger link next to each customer who left their handle
 - ✅ Reorder the queue with Move Up / Move Down buttons
 - ✅ Customers can book remotely and come when ready
-- ✅ Full history and analytics
+- ✅ Past bookings kept in the Done and Cancelled tabs
 
 ---
 
@@ -126,11 +126,10 @@ After logging in, you'll see the **Dashboard** with:
 **When a customer walks in:**
 
 1. Click **"Magic Links"** in top navigation
-2. Click **"🔗 Generate Magic Link"**
-3. *Optional:* Enter customer name and Messenger handle
-4. Click **"Generate"**
-5. **Show QR Code** to customer to scan with their phone
-6. *OR* Click **"Copy"** and send link via Messenger
+2. *Optional:* Enter customer name and Messenger handle
+3. Click **"🔗 Generate Magic Link"**
+4. **Show QR Code** to customer to scan with their phone
+5. *OR* Click **"📋 Copy"** and send link via Messenger
 
 **What happens next:**
 - Customer opens link on their phone
@@ -407,14 +406,12 @@ Staff page, and remove their access on their last day.
 
 **Daily:**
 - ✅ Check shop status is "Open" in morning
-- ✅ Clear old "Done" bookings weekly (for speed)
 - ✅ Monitor queue length during rush hours
 
 **Weekly:**
 - ✅ Review "Cancelled" reasons (spot patterns)
 - ✅ Ask staff whether customers with a 💬 link are getting a message
   before their turn
-- ✅ Backup any important customer data
 
 **Monthly:**
 - ✅ Check the Staff page: remove access for anyone who has left, and
@@ -492,7 +489,7 @@ Washboard replaces your **paper logbook** with a **digital queue system** that:
 - Saves you time (customers enter their own data)
 - Reduces errors (no illegible handwriting)
 - Improves customer experience (remote booking, a Messenger link to reach each customer)
-- Provides business insights (track cancellations, busy hours)
+- Keeps a record of every booking and cancellation
 
 **Most important:** The system is designed to be **simple and intuitive**. If something feels complicated, it probably is - ask your developer to simplify it!
 
