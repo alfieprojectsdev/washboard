@@ -1,33 +1,35 @@
 'use client';
 
 import { useState } from 'react';
+import { messengerHref } from '@/lib/messenger';
 
-/**
- * Validate messenger URL to prevent XSS attacks
- * Only allow http: and https: protocols from trusted messenger domains
- */
-function isValidMessengerUrl(url: string | null): boolean {
-  if (!url) return false;
-
-  try {
-    const parsed = new URL(url);
-
-    // Only allow http: and https: protocols (blocks javascript:, data:, etc.)
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      return false;
-    }
-
-    // Whitelist messenger domains for additional security
-    const allowedDomains = ['m.me', 'facebook.com', 'fb.me', 'messenger.com'];
-    const isAllowedDomain = allowedDomains.some(domain =>
-      parsed.hostname.endsWith(domain) || parsed.hostname === domain
+function MessengerContact({ handle, name }: { handle: string | null; name: string | null }) {
+  if (!handle) return null;
+  const href = messengerHref(handle);
+  if (!href) {
+    // Not a Facebook/Messenger address (e.g. just a name): show what they
+    // typed so staff can search for it in Messenger.
+    return (
+      <span
+        className="ml-2 inline-block max-w-[12rem] truncate align-bottom text-gray-700"
+        title={`Messenger: ${handle}`}
+      >
+        💬 {handle}
+      </span>
     );
-
-    return isAllowedDomain;
-  } catch {
-    // Invalid URL format
-    return false;
   }
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="ml-2 text-blue-600 hover:text-blue-800"
+      title="Contact via Messenger"
+      aria-label={`Message ${name || 'customer'} on Messenger`}
+    >
+      💬
+    </a>
+  );
 }
 
 interface Booking {
@@ -229,21 +231,7 @@ export default function BookingsTable({
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {booking.customerName || '-'}
-                  {booking.customerMessenger && isValidMessengerUrl(booking.customerMessenger) ? (
-                    <a
-                      href={booking.customerMessenger}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="ml-2 text-blue-600 hover:text-blue-800"
-                      title="Contact via Messenger"
-                    >
-                      💬
-                    </a>
-                  ) : booking.customerMessenger ? (
-                    <span className="ml-2 text-gray-600" title="Invalid messenger URL">
-                      💬
-                    </span>
-                  ) : null}
+                  <MessengerContact handle={booking.customerMessenger} name={booking.customerName} />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span

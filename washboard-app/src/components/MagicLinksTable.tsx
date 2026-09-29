@@ -3,6 +3,17 @@
 import { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { trackEvent } from '@/components/GoatCounterAnalytics';
+import { messengerHref } from '@/lib/messenger';
+
+function MessengerLink({ handle }: { handle: string | null }) {
+  const href = messengerHref(handle);
+  if (!href) return null;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:text-blue-800">
+      💬 Messenger
+    </a>
+  );
+}
 
 interface MagicLink {
   id: number;
@@ -150,16 +161,7 @@ export default function MagicLinksTable({ magicLinks }: MagicLinksTableProps) {
                       <div className="font-medium">
                         {link.customerName || '(No name)'}
                       </div>
-                      {link.customerMessenger && (
-                        <a
-                          href={link.customerMessenger}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:text-blue-800"
-                        >
-                          💬 Messenger
-                        </a>
-                      )}
+                      <MessengerLink handle={link.customerMessenger} />
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
