@@ -7,7 +7,7 @@ import { PATCH as updateBooking } from '@/app/api/bookings/[id]/route';
 import { POST as generateLink } from '@/app/api/magic-links/generate/route';
 import { POST as sendFeedback } from '@/app/api/feedback/route';
 import { createSession, SESSION_COOKIE_NAME } from '@/lib/auth/session';
-import { clearRateLimitStore } from '@/lib/auth/rate-limit';
+import { applyRateLimit, clearRateLimitStore, loginLimiter } from '@/lib/auth/rate-limit';
 import { redactPath } from '@/lib/feedback';
 
 /**
@@ -242,3 +242,22 @@ describe('feedback', () => {
     expect((await sendFeedback(json('http://localhost/api/feedback', { message: 'm6' }, { ip: '198.51.100.9' }))).status).toBe(429);
   });
 });
+
+describe('rate limits', () => {
+  it('a shorter-window endpoint does not wipe a longer window', async () => {
+    const ip = { ip: '198.51.100.20' };
+    for (let i = 0; i < 5; i++) {
+      await sendFeedback(json('http://localhost/api/feedback', { message: `m${i}` }, ip));
+    }
+    // Make the feedback counts 20 minutes old: inside feedback's 1-hour
+    // window, outside the 15-minute window of the login limiter.
+    await db.query(`UPDATE rate_limits SET window_start = NOW() - INTERVAL '20 minutes' WHERE endpoint = 'feedback'`);
+    await loginLimited(ip.ip);
+
+    expect((await sendFeedback(json('http://localhost/api/feedback', { message: 'm6' }, ip))).status).toBe(429);
+  });
+});
+
+async function loginLimited(ip: string) {
+  await applyRateLimit(json('http://localhost/api/auth/login', {}, { ip }), loginLimiter, 'login');
+}

@@ -50,10 +50,11 @@ async function checkRateLimit(
     try {
       await client.query('BEGIN');
 
-      // Clean up old entries (outside current window)
+      // Clean up this endpoint's expired entries. Endpoints have different
+      // windows, so a 15-minute limiter must not delete a 1-hour one's counts.
       await client.query(
-        'DELETE FROM rate_limits WHERE window_start < $1',
-        [windowStart]
+        'DELETE FROM rate_limits WHERE endpoint = $1 AND window_start < $2',
+        [endpoint, windowStart]
       );
 
       // Get or create rate limit entry
