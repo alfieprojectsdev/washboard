@@ -34,8 +34,8 @@ Washboard is a **browser-based queue management system** that replaces your pape
 **With Washboard:**
 - ✅ All bookings stored safely online
 - ✅ Clear, typed information
-- ✅ Optional Facebook Messenger notifications
-- ✅ Easy drag-and-drop queue management
+- ✅ A 💬 Messenger link next to each customer who left their handle
+- ✅ Reorder the queue with Move Up / Move Down buttons
 - ✅ Customers can book remotely and come when ready
 - ✅ Full history and analytics
 
@@ -158,6 +158,17 @@ Your dashboard shows all bookings in tabs:
 - **Cancel** - Remove booking (must select reason)
 - **↑ Move Up** - Prioritize a customer
 - **↓ Move Down** - Delay a customer
+
+#### Messaging customers when their turn is near
+
+Washboard doesn't send any messages by itself. The booking form tells
+customers who leave a Messenger handle that you'll message them when their
+turn is coming, so someone has to do it by hand:
+
+1. Watch for a car that's about two places from the front
+2. Click the 💬 next to the customer's name (it only appears if they left a
+   handle). Messenger opens in a new tab
+3. Send something like "Your car is nearly up, please head over now"
 
 #### **In Service Tab**
 - Cars currently being washed
@@ -293,7 +304,8 @@ This works for everyone, not only admins. Your other devices are logged out.
 **Solution:**
 1. Click **"Close Shop"**
 2. Select reason: "Power outage" or "Water supply issue"
-3. **Contact customers** via Messenger (if they provided handles)
+3. **Contact customers**: click the 💬 next to each name to message them
+   (only customers who left a Messenger handle have one)
 4. When resolved: Click **"Reopen Shop"**
 
 ---
@@ -384,7 +396,7 @@ Staff page, and remove their access on their last day.
 **Promote the new system:**
 - "We now accept online bookings!"
 - "Scan QR code to join queue from anywhere"
-- "Get Messenger notifications when ready"
+- "Leave your Messenger and we'll message you when you're nearly up"
 
 **Post signs:**
 - At entrance: "Scan to join queue"
@@ -400,7 +412,8 @@ Staff page, and remove their access on their last day.
 
 **Weekly:**
 - ✅ Review "Cancelled" reasons (spot patterns)
-- ✅ Check if customers are using Messenger notifications
+- ✅ Ask staff whether customers with a 💬 link are getting a message
+  before their turn
 - ✅ Backup any important customer data
 
 **Monthly:**
@@ -478,7 +491,7 @@ HELP: Contact [developer name/number]
 Washboard replaces your **paper logbook** with a **digital queue system** that:
 - Saves you time (customers enter their own data)
 - Reduces errors (no illegible handwriting)
-- Improves customer experience (remote booking, notifications)
+- Improves customer experience (remote booking, a Messenger link to reach each customer)
 - Provides business insights (track cancellations, busy hours)
 
 **Most important:** The system is designed to be **simple and intuitive**. If something feels complicated, it probably is - ask your developer to simplify it!
