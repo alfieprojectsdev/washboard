@@ -1,16 +1,4 @@
 // vitest.setup.ts
-import { beforeAll, afterAll } from 'vitest';
-
-beforeAll(async () => {
-  // Set environment for testing
-  process.env.USE_MOCK_DB = 'true';
-  // NODE_ENV is automatically set by Vitest
-
-  console.log('🧪 Test environment initialized');
-  console.log('   Using pg-mem (mock database)');
-});
-
-afterAll(async () => {
-  // Cleanup if needed
-  console.log('✅ Test environment cleaned up');
-});
+// The database is provided by src/__tests__/helpers/test-db.ts (see the alias in
+// vitest.config.ts). Owner setup signup needs a known code in tests.
+process.env.OWNER_SETUP_CODE = process.env.OWNER_SETUP_CODE || 'test-setup-code';

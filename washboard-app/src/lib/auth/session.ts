@@ -3,13 +3,13 @@ import { randomBytes } from 'crypto';
 import db from '@/lib/db';
 
 /**
- * Session Management for Next.js App Router
+ * Database-backed sessions for receptionists.
  *
- * Implements session storage in PostgreSQL with the following P0 security features:
- * - Session regeneration (prevents session fixation)
- * - Secure cookie handling (httpOnly, secure, sameSite)
- * - Session expiration (24 hours)
- * - Database-backed session storage (survives server restarts)
+ * The cookie holds only a random 256-bit session ID. Everything else lives in
+ * the sessions table, so logout, password changes and user deletion take
+ * effect on the next request (a signed JWT could not be revoked that way).
+ * Every lookup re-reads the user row, so role and branch changes apply
+ * immediately too.
  */
 
 export interface SessionData {
@@ -21,67 +21,40 @@ export interface SessionData {
   role: string;
 }
 
-const SESSION_COOKIE_NAME = 'washboard_session';
-const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+export const SESSION_COOKIE_NAME = 'washboard_session';
+const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
-/**
- * Generate a cryptographically secure session ID
- */
 function generateSessionId(): string {
   return randomBytes(32).toString('hex');
 }
 
-/**
- * Create a new session for a user
- * Stores session in database and returns session ID
- *
- * P0 Security: This implements session regeneration by creating a fresh session
- */
 export async function createSession(userData: SessionData): Promise<string> {
   const sessionId = generateSessionId();
   const expiresAt = new Date(Date.now() + SESSION_DURATION);
 
-  // Store session in database
   await db.query(
     `INSERT INTO sessions (sid, sess, expire, user_id, branch_code)
      VALUES ($1, $2, $3, $4, $5)`,
-    [
-      sessionId,
-      JSON.stringify(userData),
-      expiresAt,
-      userData.userId,
-      userData.branchCode,
-    ]
+    [sessionId, JSON.stringify(userData), expiresAt, userData.userId, userData.branchCode]
   );
 
   return sessionId;
 }
 
-/**
- * Retrieve session data from database
- * Returns null if session doesn't exist or has expired
- */
+/** Returns the stored session payload, or null if missing or expired. */
 export async function getSession(sessionId: string): Promise<SessionData | null> {
   try {
-    const result = await db.query(
-      `SELECT sess, expire FROM sessions WHERE sid = $1`,
-      [sessionId]
-    );
-
+    const result = await db.query(`SELECT sess, expire FROM sessions WHERE sid = $1`, [sessionId]);
     if (result.rows.length === 0) {
       return null;
     }
 
     const { sess, expire } = result.rows[0];
-
-    // Check if session has expired
     if (new Date(expire) < new Date()) {
-      // Clean up expired session
       await destroySession(sessionId);
       return null;
     }
 
-    // Handle both string (real PostgreSQL) and object (pg-mem)
     return (typeof sess === 'string' ? JSON.parse(sess) : sess) as SessionData;
   } catch (err) {
     console.error('Error retrieving session:', err);
@@ -89,126 +62,86 @@ export async function getSession(sessionId: string): Promise<SessionData | null>
   }
 }
 
-/**
- * Update session data in database
- * Extends session expiration time
- */
-export async function updateSession(
-  sessionId: string,
-  userData: SessionData
-): Promise<void> {
+export async function updateSession(sessionId: string, userData: SessionData): Promise<void> {
   const expiresAt = new Date(Date.now() + SESSION_DURATION);
-
-  await db.query(
-    `UPDATE sessions
-     SET sess = $1, expire = $2
-     WHERE sid = $3`,
-    [JSON.stringify(userData), expiresAt, sessionId]
-  );
+  await db.query(`UPDATE sessions SET sess = $1, expire = $2 WHERE sid = $3`, [
+    JSON.stringify(userData),
+    expiresAt,
+    sessionId,
+  ]);
 }
 
-/**
- * Delete session from database
- */
 export async function destroySession(sessionId: string): Promise<void> {
   await db.query(`DELETE FROM sessions WHERE sid = $1`, [sessionId]);
 }
 
 /**
- * P0 Security: Regenerate session after login
- *
- * This prevents session fixation attacks by:
- * 1. Destroying the old session (if it exists)
- * 2. Creating a new session with a fresh session ID
- * 3. Transferring user data to the new session
+ * Issue a fresh session ID at login and drop the old one, so a session ID
+ * planted before login (session fixation) is useless afterwards.
  */
 export async function regenerateSession(
   oldSessionId: string | null,
   userData: SessionData
 ): Promise<string> {
-  // Destroy old session if it exists
   if (oldSessionId) {
     await destroySession(oldSessionId);
   }
-
-  // Create new session with fresh ID
-  const newSessionId = await createSession(userData);
-
-  return newSessionId;
+  return createSession(userData);
 }
 
-/**
- * Extract session ID from request cookies
- */
 export function getSessionIdFromRequest(request: NextRequest): string | null {
   return request.cookies.get(SESSION_COOKIE_NAME)?.value || null;
 }
 
 /**
- * Set session cookie on response
- *
- * P0 Security Features:
- * - httpOnly: Prevents JavaScript access (XSS protection)
- * - secure: Only sent over HTTPS in production
- * - sameSite: 'lax' allows cookies on top-level navigation (QR codes) while preventing CSRF
+ * httpOnly keeps the ID away from page scripts. sameSite=lax means the cookie
+ * is not sent on cross-site POSTs, which is this app's CSRF protection; it is
+ * still sent on top-level GET navigations such as scanning a QR code.
  */
-export function setSessionCookie(
-  response: NextResponse,
-  sessionId: string
-): void {
+export function setSessionCookie(response: NextResponse, sessionId: string): void {
   response.cookies.set(SESSION_COOKIE_NAME, sessionId, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: SESSION_DURATION / 1000, // Convert to seconds
+    maxAge: SESSION_DURATION / 1000,
     path: '/',
   });
 }
 
-/**
- * Clear session cookie (for logout)
- */
 export function clearSessionCookie(response: NextResponse): void {
   response.cookies.delete(SESSION_COOKIE_NAME);
 }
 
 /**
- * Get current user from session
- * Re-fetches user from database to prevent stale data (P0 security)
+ * Resolve a session ID to the current user, re-reading the users table.
+ * Used by API routes (via getCurrentUser) and by server pages, which read the
+ * cookie through next/headers instead of a NextRequest.
  */
-export async function getCurrentUser(
-  request: NextRequest
-): Promise<SessionData | null> {
-  const sessionId = getSessionIdFromRequest(request);
-
+export async function getUserBySessionId(sessionId: string | null | undefined): Promise<SessionData | null> {
   if (!sessionId) {
     return null;
   }
 
   const sessionData = await getSession(sessionId);
-
   if (!sessionData) {
     return null;
   }
 
-  // P0 Security: Re-fetch user from database to ensure data is fresh
-  // This prevents issues with stale sessions after user updates/deletions
   try {
     const result = await db.query(
       `SELECT user_id, branch_code, username, name, email, role
        FROM users
-       WHERE user_id = $1`,
+       WHERE user_id = $1 AND disabled_at IS NULL`,
       [sessionData.userId]
     );
 
+    // Deleted, or access removed by an admin: end the session now.
     if (result.rows.length === 0) {
-      // User no longer exists - destroy session
       await destroySession(sessionId);
       return null;
     }
 
     const user = result.rows[0];
-
     return {
       userId: user.user_id,
       branchCode: user.branch_code,
@@ -223,30 +156,54 @@ export async function getCurrentUser(
   }
 }
 
-/**
- * Clean up expired sessions from database
- * This should be run periodically (e.g., via cron job or on startup)
- */
+export async function getCurrentUser(request: NextRequest): Promise<SessionData | null> {
+  return getUserBySessionId(getSessionIdFromRequest(request));
+}
+
+/** Deletes expired sessions. Called opportunistically from the login route. */
 export async function cleanupExpiredSessions(): Promise<number> {
-  const result = await db.query(
-    `DELETE FROM sessions WHERE expire < $1`,
-    [new Date()]
-  );
+  const result = await db.query(`DELETE FROM sessions WHERE expire < $1`, [new Date()]);
   return result.rowCount || 0;
 }
 
-/**
- * Check if request is authenticated
- * Returns authentication status and session data
- */
 export async function isAuthenticated(
   request: NextRequest
 ): Promise<{ authenticated: boolean; session: SessionData | null }> {
   const sessionData = await getCurrentUser(request);
+  return sessionData
+    ? { authenticated: true, session: sessionData }
+    : { authenticated: false, session: null };
+}
 
-  if (!sessionData) {
-    return { authenticated: false, session: null };
+/**
+ * Log a user in on this response: fresh session ID (the old one, if any, is
+ * destroyed), cookie set, last_login_at updated. Used by login, invite
+ * signup, owner setup and password reset.
+ */
+export async function startSession(request: NextRequest, response: NextResponse, user: SessionData): Promise<void> {
+  const sessionId = await regenerateSession(getSessionIdFromRequest(request), user);
+  setSessionCookie(response, sessionId);
+  await db.query('UPDATE users SET last_login_at = NOW() WHERE user_id = $1', [user.userId]);
+}
+
+/**
+ * For admin-only API routes: the logged-in admin, or the 401/403 response to
+ * return. Admins manage their own branch only.
+ */
+export async function requireAdmin(
+  request: NextRequest
+): Promise<{ admin: SessionData; denied?: undefined } | { admin?: undefined; denied: NextResponse }> {
+  const user = await getCurrentUser(request);
+  if (!user) {
+    return { denied: NextResponse.json({ error: 'Unauthorized', code: 'NOT_AUTHENTICATED' }, { status: 401 }) };
   }
+  if (user.role !== 'admin') {
+    return { denied: NextResponse.json({ error: 'Only the shop owner can do this', code: 'FORBIDDEN' }, { status: 403 }) };
+  }
+  return { admin: user };
+}
 
-  return { authenticated: true, session: sessionData };
+/** Receptionists may only act on their own branch. */
+export function ensureBranchAccess(user: Pick<SessionData, 'branchCode'>, branchCode: string): boolean {
+  return user.branchCode === branchCode.toUpperCase();
 }

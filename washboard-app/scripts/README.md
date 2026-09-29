@@ -50,8 +50,6 @@ For complete screenshots with actual dashboard and magic link UI:
 # Set up database (e.g., using Supabase or local PostgreSQL)
 export DATABASE_URL="postgresql://user:password@localhost:5432/washboard"
 
-# Or use in-memory database for quick testing
-export USE_MOCK_DB=true
 
 cd washboard-app
 npm run dev &
@@ -123,7 +121,7 @@ Environment variables:
 
 - `BASE_URL` - Application URL (default: `http://localhost:3000`)
 - `DATABASE_URL` - PostgreSQL connection string (optional)
-- `USE_MOCK_DB` - Use in-memory database (optional, set to `true`)
+- `WASHBOARD_SCREENSHOT_MODE=true` - Render the dashboard with mock data and no login (dev server only; ignored in production builds)
 
 Test data (hardcoded in script):
 
@@ -178,7 +176,7 @@ sudo apt-get install -y libgdk-pixbuf2.0-0 libx11-6
 **Screenshots show 404 errors**:
 - This is expected for dashboard pages without authentication
 - Set up a database and run the script with `DATABASE_URL` set
-- Or use `USE_MOCK_DB=true` for in-memory testing
+- Or set `WASHBOARD_SCREENSHOT_MODE=true` for dashboard pages (booking pages still need a database)
 
 **Magic link appears invalid**:
 - Placeholder tokens are used when database is unavailable

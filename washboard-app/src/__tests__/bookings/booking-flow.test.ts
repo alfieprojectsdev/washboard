@@ -51,7 +51,7 @@ describe('Customer Booking Flow', () => {
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (branch_code, username) DO UPDATE SET name = $4
        RETURNING user_id`,
-      [testBranchCode, 'testrecept', 'hash', 'Test Receptionist', 'receptionist']
+      [testBranchCode, 'testrecept', '$2b$10$abcdefghijklmnopqrstuuO3VbCmrfbHqX1bY7n6FhGZ9kqYyWf1bC', 'Test Receptionist', 'receptionist']
     );
     testUserId = userResult.rows[0].user_id;
 
@@ -540,7 +540,7 @@ describe('Customer Booking Flow', () => {
            VALUES
              ($1, 'CMP-001', 'Honda', 'Civic', 'done', 1),
              ($1, 'CMP-002', 'Ford', 'Focus', 'cancelled', 2),
-             ($1, 'QUE-001', 'BMW', 'X5', 'queued', 3)`,
+             ($1, 'QUE-001', 'BMW', 'X5', 'queued', 1)`,
           [testBranchCode]
         );
 
@@ -560,7 +560,8 @@ describe('Customer Booking Flow', () => {
         const data = await response.json();
 
         expect(response.status).toBe(201);
-        // Should only count queued bookings: 1 queued + 1 new = 2
+        // Done/cancelled bookings keep their old position numbers but are out of
+        // the queue; the one queued booking holds position 1, so the new one is 2.
         expect(data.booking.position).toBe(2);
       });
 

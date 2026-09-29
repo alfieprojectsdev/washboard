@@ -1,12 +1,11 @@
--- schema.sql
--- Washboard Car Wash Queue Management System
--- Database Schema v1.0
-
--- Enable UUID extension (optional, for future use)
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- Migration 001: initial schema
+-- Originally applied to production on 2025-11-07 from src/lib/schema.sql.
+-- Rewritten 2026-09-26 so it can be re-run safely: every statement is
+-- IF NOT EXISTS / DROP ... IF EXISTS / ON CONFLICT DO NOTHING. Running it
+-- against the existing production database changes nothing.
 
 -- ============================================
--- BRANCHES TABLE
+-- BRANCHES
 -- ============================================
 CREATE TABLE IF NOT EXISTS branches (
   branch_code VARCHAR(20) PRIMARY KEY,
@@ -22,7 +21,7 @@ COMMENT ON TABLE branches IS 'Car wash branch/franchise locations';
 COMMENT ON COLUMN branches.avg_service_minutes IS 'Average minutes per car wash (for wait time estimation)';
 
 -- ============================================
--- USERS TABLE (Receptionist accounts)
+-- USERS (receptionist accounts)
 -- ============================================
 CREATE TABLE IF NOT EXISTS users (
   user_id SERIAL PRIMARY KEY,
@@ -35,7 +34,6 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
 
-  -- Constraints (from auth analysis P0 fixes)
   CONSTRAINT valid_username CHECK (username ~ '^[a-zA-Z0-9_-]{3,50}$'),
   CONSTRAINT password_length CHECK (LENGTH(password_hash) >= 60),
   CONSTRAINT valid_email CHECK (email IS NULL OR email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$'),
@@ -45,12 +43,12 @@ CREATE TABLE IF NOT EXISTS users (
 COMMENT ON TABLE users IS 'Receptionist and admin accounts';
 COMMENT ON COLUMN users.password_hash IS 'bcrypt hash (60+ chars)';
 
--- CRITICAL: Correct index column order (branch_code FIRST for login queries)
-CREATE UNIQUE INDEX idx_users_branch_username ON users(branch_code, username);
-CREATE INDEX idx_users_email ON users(email) WHERE email IS NOT NULL;
+-- branch_code first: login filters by branch, then username
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_branch_username ON users(branch_code, username);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
 
 -- ============================================
--- CUSTOMER_MAGIC_LINKS TABLE
+-- CUSTOMER_MAGIC_LINKS
 -- ============================================
 CREATE TABLE IF NOT EXISTS customer_magic_links (
   id BIGSERIAL PRIMARY KEY,
@@ -74,12 +72,15 @@ COMMENT ON TABLE customer_magic_links IS 'One-time magic links for customer book
 COMMENT ON COLUMN customer_magic_links.token IS 'Secure random token (single-use, 24h expiration)';
 COMMENT ON COLUMN customer_magic_links.used_at IS 'Timestamp when link was used (NULL = unused)';
 
-CREATE INDEX idx_magic_links_token ON customer_magic_links(token) WHERE used_at IS NULL;
-CREATE INDEX idx_magic_links_branch_active ON customer_magic_links(branch_code, expires_at)
-  WHERE used_at IS NULL AND expires_at > NOW();
+CREATE INDEX IF NOT EXISTS idx_magic_links_token ON customer_magic_links(token) WHERE used_at IS NULL;
+-- (The original schema also had a partial index with "expires_at > NOW()" in
+-- its predicate. Postgres rejects non-immutable functions in index predicates,
+-- so that index was never created; it is dropped from this file.)
+CREATE INDEX IF NOT EXISTS idx_magic_links_branch_expires ON customer_magic_links(branch_code, expires_at)
+  WHERE used_at IS NULL;
 
 -- ============================================
--- BOOKINGS TABLE
+-- BOOKINGS (the queue)
 -- ============================================
 CREATE TABLE IF NOT EXISTS bookings (
   id BIGSERIAL PRIMARY KEY,
@@ -108,13 +109,12 @@ COMMENT ON TABLE bookings IS 'Car wash queue bookings';
 COMMENT ON COLUMN bookings.position IS 'Queue position (1 = first, 2 = second, etc.)';
 COMMENT ON COLUMN bookings.magic_link_id IS 'Source magic link (if applicable)';
 
--- Performance indexes
-CREATE INDEX idx_bookings_branch_status_position ON bookings(branch_code, status, position);
-CREATE INDEX idx_bookings_created_at ON bookings(created_at DESC);
-CREATE INDEX idx_bookings_magic_link ON bookings(magic_link_id) WHERE magic_link_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_bookings_branch_status_position ON bookings(branch_code, status, position);
+CREATE INDEX IF NOT EXISTS idx_bookings_created_at ON bookings(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bookings_magic_link ON bookings(magic_link_id) WHERE magic_link_id IS NOT NULL;
 
 -- ============================================
--- SHOP_STATUS TABLE
+-- SHOP_STATUS
 -- ============================================
 CREATE TABLE IF NOT EXISTS shop_status (
   id SERIAL PRIMARY KEY,
@@ -128,12 +128,11 @@ CREATE TABLE IF NOT EXISTS shop_status (
 );
 
 COMMENT ON TABLE shop_status IS 'Current open/closed status per branch';
-COMMENT ON COLUMN shop_status.reason IS 'Closure reason (e.g., Maintenance, Power outage, Weather)';
 
-CREATE INDEX idx_shop_status_branch ON shop_status(branch_code);
+CREATE INDEX IF NOT EXISTS idx_shop_status_branch ON shop_status(branch_code);
 
 -- ============================================
--- SESSIONS TABLE (Enhanced per auth analysis)
+-- SESSIONS
 -- ============================================
 CREATE TABLE IF NOT EXISTS sessions (
   sid VARCHAR(128) PRIMARY KEY,
@@ -144,14 +143,14 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-COMMENT ON TABLE sessions IS 'Express session store (enhanced with user_id and branch_code)';
+COMMENT ON TABLE sessions IS 'Receptionist sessions (DB-backed so logout and user deletion take effect immediately)';
 
-CREATE INDEX idx_session_expire ON sessions(expire);
-CREATE INDEX idx_session_user ON sessions(user_id) WHERE user_id IS NOT NULL;
-CREATE INDEX idx_session_branch ON sessions(branch_code) WHERE branch_code IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_session_expire ON sessions(expire);
+CREATE INDEX IF NOT EXISTS idx_session_user ON sessions(user_id) WHERE user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_session_branch ON sessions(branch_code) WHERE branch_code IS NOT NULL;
 
 -- ============================================
--- TRIGGERS (Auto-update timestamps)
+-- updated_at triggers
 -- ============================================
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -161,28 +160,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_branches_updated_at ON branches;
 CREATE TRIGGER update_branches_updated_at BEFORE UPDATE ON branches
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_bookings_updated_at ON bookings;
 CREATE TRIGGER update_bookings_updated_at BEFORE UPDATE ON bookings
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
--- INITIAL DATA (Single "MAIN" branch)
--- ============================================
-INSERT INTO branches (branch_code, branch_name, location, avg_service_minutes)
-VALUES ('MAIN', 'Main Branch', 'Primary Location', 20)
-ON CONFLICT (branch_code) DO NOTHING;
-
-INSERT INTO shop_status (branch_code, is_open, reason)
-VALUES ('MAIN', TRUE, NULL)
-ON CONFLICT (branch_code) DO NOTHING;
-
--- ============================================
--- RATE LIMITING TABLE
+-- RATE LIMITS (login/signup; per-IP, DB-backed so it works on serverless)
 -- ============================================
 CREATE TABLE IF NOT EXISTS rate_limits (
   endpoint VARCHAR(100) NOT NULL,
@@ -192,17 +183,10 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   PRIMARY KEY (endpoint, identifier)
 );
 
-COMMENT ON TABLE rate_limits IS 'Rate limiting for login/signup endpoints (serverless-compatible)';
-COMMENT ON COLUMN rate_limits.endpoint IS 'API endpoint being rate limited (e.g., "login", "signup")';
-COMMENT ON COLUMN rate_limits.identifier IS 'IP address or user identifier';
-COMMENT ON COLUMN rate_limits.count IS 'Number of requests in current window';
-COMMENT ON COLUMN rate_limits.window_start IS 'Start time of current rate limit window';
-
--- Index for efficient cleanup of old entries
 CREATE INDEX IF NOT EXISTS idx_rate_limits_window ON rate_limits(window_start);
 
 -- ============================================
--- SCHEMA VERSION
+-- SCHEMA VERSION (legacy tracker, kept for existing databases)
 -- ============================================
 CREATE TABLE IF NOT EXISTS schema_version (
   version INTEGER PRIMARY KEY,
@@ -211,4 +195,13 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 INSERT INTO schema_version (version) VALUES (1) ON CONFLICT DO NOTHING;
 
-COMMENT ON TABLE schema_version IS 'Track schema migrations';
+-- ============================================
+-- Initial data: the single MAIN branch
+-- ============================================
+INSERT INTO branches (branch_code, branch_name, location, avg_service_minutes)
+VALUES ('MAIN', 'Main Branch', 'Primary Location', 20)
+ON CONFLICT (branch_code) DO NOTHING;
+
+INSERT INTO shop_status (branch_code, is_open, reason)
+VALUES ('MAIN', TRUE, NULL)
+ON CONFLICT (branch_code) DO NOTHING;

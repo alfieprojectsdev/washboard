@@ -1,214 +1,156 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { validateMagicLink } from '@/lib/magic-links/utils';
+import { lockBranchQueue } from '@/lib/bookings/queue';
 
 /**
  * POST /api/bookings/submit
  *
- * Submit a car wash booking using a magic link token.
- * Public endpoint - no authentication required (uses magic link).
+ * Public endpoint: a customer submits a booking using the magic link the
+ * receptionist gave them. The link is the only credential, and it works once.
  *
- * This endpoint processes customer booking submissions after they access a valid
- * magic link. The magic link provides authentication (via token validation), and
- * the booking is added to the queue for the associated branch.
+ * Body: { token, plate, vehicleMake, vehicleModel,
+ *         customerName?, customerMessenger?, preferredTime?, notes? }
  *
- * Security Features:
- * - Magic link validation ensures only authorized customers can book
- * - Single-use enforcement prevents token reuse
- * - Token must not be expired (24-hour validity)
- * - SQL injection protection via parameterized queries
- * - Input sanitization (trim whitespace)
+ * Single use is enforced inside the transaction by
+ *   UPDATE customer_magic_links SET used_at = NOW()
+ *   WHERE token = $1 AND used_at IS NULL AND expires_at > NOW()
+ * Two simultaneous submits with the same link both pass the read-only check
+ * below, but only one of them can win that UPDATE. (Before 2026-09-26 the
+ * UPDATE had no "used_at IS NULL" condition, so both would create a booking.)
+ * The unique index idx_bookings_one_per_magic_link is the database backstop.
  *
- * Workflow:
- * 1. Validate required fields and token format
- * 2. Validate magic link (exists, not expired, not used)
- * 3. Calculate queue position for the branch
- * 4. Create booking in database with status 'queued'
- * 5. Mark magic link as used (single-use enforcement)
- * 6. Return booking details to customer
- *
- * Request Body:
- * {
- *   "token": string,              // Magic link token (128 characters, required)
- *   "plate": string,               // Vehicle license plate (required)
- *   "vehicleMake": string,         // Vehicle make (required)
- *   "vehicleModel": string,        // Vehicle model (required)
- *   "customerName"?: string,       // Customer name (optional)
- *   "customerMessenger"?: string,  // Facebook Messenger handle (optional)
- *   "preferredTime"?: string,      // ISO 8601 datetime (optional)
- *   "notes"?: string               // Additional notes (optional)
- * }
- *
- * Success Response (201):
- * {
- *   "success": true,
- *   "booking": {
- *     "id": number,           // Booking ID
- *     "position": number,     // Queue position (1-indexed)
- *     "status": "queued",     // Always 'queued' for new bookings
- *     "branchCode": string    // Branch code (e.g., "MAIN")
- *   }
- * }
- *
- * Error Responses:
- * 400 - { error: string, code: "MISSING_FIELDS" } - Missing required fields
- * 400 - { error: string, code: "INVALID_TOKEN" } - Invalid token format
- * 403 - { error: string, code: string } - Invalid/expired/used magic link
- * 500 - { error: string, code: "SERVER_ERROR" } - Server error during booking
- *
- * @example
- * // Submit a booking from the customer booking form
- * const response = await fetch('/api/bookings/submit', {
- *   method: 'POST',
- *   headers: { 'Content-Type': 'application/json' },
- *   body: JSON.stringify({
- *     token: 'aB3dE5f7...128-char-token',
- *     plate: 'ABC-1234',
- *     vehicleMake: 'Toyota',
- *     vehicleModel: 'Camry',
- *     customerName: 'John Doe',
- *     preferredTime: '2025-11-07T14:30:00Z',
- *     notes: 'Please focus on wheels'
- *   })
- * });
- *
- * if (response.ok) {
- *   const { booking } = await response.json();
- *   console.log(`Booking #${booking.id} created at position ${booking.position}`);
- * }
+ * 201 { success, booking: { id, position, status, branchCode } }
+ * 400 missing/invalid fields | 403 link invalid/expired/used or shop closed
+ * 503 shop status missing | 500 server error
  */
+
+const LIMITS = { plate: 20, vehicleMake: 50, vehicleModel: 50, customerName: 100, customerMessenger: 255, notes: 1000 };
+
+function optionalText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+}
+
 export async function POST(request: NextRequest) {
+  let body: Record<string, unknown>;
   try {
-    // 1. Parse request body
-    const body = await request.json();
-    const { token, plate, vehicleMake, vehicleModel, customerName, customerMessenger, preferredTime, notes } = body;
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body', code: 'INVALID_BODY' }, { status: 400 });
+  }
 
-    // 2. Validate required fields
-    // Security: Reject requests missing critical data early
-    if (!token || !plate || !vehicleMake || !vehicleModel) {
+  const { token, plate, vehicleMake, vehicleModel, customerName, customerMessenger, preferredTime, notes } = body;
+
+  if (
+    typeof plate !== 'string' || !plate.trim() ||
+    typeof vehicleMake !== 'string' || !vehicleMake.trim() ||
+    typeof vehicleModel !== 'string' || !vehicleModel.trim() ||
+    !token
+  ) {
+    return NextResponse.json({ error: 'Missing required fields', code: 'MISSING_FIELDS' }, { status: 400 });
+  }
+
+  if (typeof token !== 'string' || token.length !== 128) {
+    return NextResponse.json({ error: 'Invalid token format', code: 'INVALID_TOKEN' }, { status: 400 });
+  }
+
+  const fields = { plate, vehicleMake, vehicleModel, customerName, customerMessenger, notes } as Record<string, unknown>;
+  for (const [name, max] of Object.entries(LIMITS)) {
+    const value = fields[name];
+    if (typeof value === 'string' && value.trim().length > max) {
       return NextResponse.json(
-        { error: 'Missing required fields', code: 'MISSING_FIELDS' },
+        { error: `${name} must be at most ${max} characters`, code: 'FIELD_TOO_LONG' },
         { status: 400 }
       );
     }
+  }
 
-    // 3. Validate token format
-    // Security: Basic format validation to reject obviously invalid tokens
-    if (typeof token !== 'string' || token.length !== 128) {
-      return NextResponse.json(
-        { error: 'Invalid token format', code: 'INVALID_TOKEN' },
-        { status: 400 }
-      );
+  let preferred: Date | null = null;
+  if (typeof preferredTime === 'string' && preferredTime !== '') {
+    preferred = new Date(preferredTime);
+    if (Number.isNaN(preferred.getTime())) {
+      return NextResponse.json({ error: 'Invalid preferred time', code: 'INVALID_TIME' }, { status: 400 });
     }
+  }
 
-    // 4. Validate magic link
-    // Security: Ensures token exists, is not expired, and has not been used
+  try {
+    // Read-only check first, for a specific error message and to learn the branch.
     const validation = await validateMagicLink(token);
-
-    if (!validation.valid) {
+    if (!validation.valid || !validation.link) {
       return NextResponse.json(
         { error: 'Invalid or expired link', code: validation.error || 'INVALID_TOKEN' },
         { status: 403 }
       );
     }
+    const branchCode = validation.link.branchCode;
 
-    const branchCode = validation.link!.branchCode;
-
-    // 5. Check if shop is open and accepting bookings
-    // Business logic: Prevent bookings when shop is closed
-    const shopStatusResult = await db.query(
-      'SELECT is_open, reason FROM shop_status WHERE branch_code = $1',
-      [branchCode]
-    );
-
+    // Checked before claiming the link, so a closed shop does not burn it.
+    const shopStatusResult = await db.query('SELECT is_open, reason FROM shop_status WHERE branch_code = $1', [
+      branchCode,
+    ]);
     if (shopStatusResult.rows.length === 0) {
-      // No shop status found - default to closed for safety
       return NextResponse.json(
-        {
-          error: 'Bookings are currently unavailable. Please contact the shop.',
-          code: 'SHOP_UNAVAILABLE'
-        },
+        { error: 'Bookings are currently unavailable. Please contact the shop.', code: 'SHOP_UNAVAILABLE' },
         { status: 503 }
       );
     }
-
     const shopStatus = shopStatusResult.rows[0];
     if (!shopStatus.is_open) {
       return NextResponse.json(
-        {
-          error: shopStatus.reason || 'Sorry, we are currently closed. Please try again later.',
-          code: 'SHOP_CLOSED'
-        },
+        { error: shopStatus.reason || 'Sorry, we are currently closed. Please try again later.', code: 'SHOP_CLOSED' },
         { status: 403 }
       );
     }
 
-    // 6. Start transaction for atomic booking creation
-    // Transaction ensures: race-free position assignment, magic link single-use,
-    // and atomic rollback on any failure
     const client = await db.connect();
     try {
       await client.query('BEGIN');
+      await lockBranchQueue(client, branchCode);
 
-      // 6. Calculate queue position with lock
-      // Lock the bookings table first to prevent race conditions
-      // Note: We can't use FOR UPDATE with COUNT(*), so we lock by selecting rows first
-      await client.query(
-        `SELECT id FROM bookings
-         WHERE branch_code = $1 AND status IN ('queued', 'in_service')
-         FOR UPDATE`,
-        [branchCode]
+      const claim = await client.query(
+        `UPDATE customer_magic_links
+         SET used_at = NOW()
+         WHERE token = $1 AND used_at IS NULL AND expires_at > NOW()
+         RETURNING id`,
+        [token]
       );
+      if (claim.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return NextResponse.json({ error: 'Invalid or expired link', code: 'ALREADY_USED' }, { status: 403 });
+      }
+      const magicLinkId = claim.rows[0].id;
 
-      // Now safely count the rows (already locked)
       const positionResult = await client.query(
-        `SELECT COUNT(*) as count FROM bookings
+        `SELECT COALESCE(MAX(position), 0) + 1 AS position FROM bookings
          WHERE branch_code = $1 AND status IN ('queued', 'in_service')`,
         [branchCode]
       );
+      const position = Number(positionResult.rows[0].position);
 
-      const position = parseInt(positionResult.rows[0].count) + 1;
-
-      // 7. Create booking
-      // Security: Parameterized query prevents SQL injection
-      // Data sanitization: Trim whitespace from user inputs
       const result = await client.query(
         `INSERT INTO bookings (
           branch_code, magic_link_id, plate, vehicle_make, vehicle_model,
           customer_name, customer_messenger, preferred_time, status, position, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', $9, $10)
         RETURNING id, branch_code, position, status`,
         [
           branchCode,
-          validation.link!.id,
+          magicLinkId,
           plate.trim(),
           vehicleMake.trim(),
           vehicleModel.trim(),
-          customerName?.trim() || null,
-          customerMessenger?.trim() || null,
-          preferredTime || null,
-          'queued',
+          optionalText(customerName),
+          optionalText(customerMessenger),
+          preferred,
           position,
-          notes?.trim() || null
+          optionalText(notes),
         ]
       );
-
       const booking = result.rows[0];
 
-      // 8. Mark magic link as used (single-use enforcement)
-      // Security: Prevents token reuse - link can only create one booking
-      // Inside transaction ensures atomicity with booking creation
-      await client.query(
-        `UPDATE customer_magic_links
-         SET used_at = NOW(), booking_id = $1
-         WHERE token = $2`,
-        [booking.id, token]
-      );
-
-      // 9. Commit transaction
+      await client.query('UPDATE customer_magic_links SET booking_id = $1 WHERE id = $2', [booking.id, magicLinkId]);
       await client.query('COMMIT');
 
-      // 10. Return success response
       return NextResponse.json(
         {
           success: true,
@@ -216,31 +158,22 @@ export async function POST(request: NextRequest) {
             id: booking.id,
             position: booking.position,
             status: booking.status,
-            branchCode: booking.branch_code
-          }
+            branchCode: booking.branch_code,
+          },
         },
         { status: 201 }
       );
-
-    } catch (error: unknown) {
-      // Rollback transaction on any error
-      await client.query('ROLLBACK');
-      throw error; // Re-throw to outer catch for consistent error handling
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
     } finally {
-      // Always release the client connection
       client.release();
     }
-
   } catch (error: unknown) {
-    // Security: Never log tokens or sensitive data in error messages
-    console.error('Booking submission error:', error);
-
-    // Don't expose internal error details to client
+    // Never log the token or the request body.
+    console.error('Booking submission error:', error instanceof Error ? error.message : error);
     return NextResponse.json(
-      {
-        error: 'An error occurred while submitting your booking',
-        code: 'SERVER_ERROR',
-      },
+      { error: 'An error occurred while submitting your booking', code: 'SERVER_ERROR' },
       { status: 500 }
     );
   }

@@ -1,443 +1,126 @@
-# 🚗 Washboard - Car Wash Queue Management System
+# Washboard
 
-[![Tests](https://img.shields.io/badge/tests-130%2F130-success)](washboard-app/src/__tests__)
-[![Security](https://img.shields.io/badge/security-94%2F100-brightgreen)](#security)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
-[![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
-[![License](https://img.shields.io/badge/license-Proprietary-red)](#)
+Queue management for a car wash. The receptionist hands each walk-in customer a
+QR code; the customer scans it, enters their plate and car, and watches their
+place in the queue update on their phone. The receptionist moves cars through
+queued → in service → done from a dashboard.
 
-**Production-ready browser-based queue management system for car wash operations.** Replace manual pen-and-paper queue management with a modern, contactless digital solution.
+Live: [washboard.ithinkandicode.space](https://washboard.ithinkandicode.space)
+(Vercel + Neon Postgres).
 
-> **Project Type:** Real-world production application for a local car wash business
-> **Status:** ✅ Production Ready (Phases 0-7 Complete)
-> **Live Demo:** [washboard.ithinkandicode.space](https://washboard.ithinkandicode.space) *(production instance)*
+![Receptionist dashboard: shop status, the queue with wait estimates, and start/cancel/reorder actions](docs/screenshots/dashboard-queue.png)
 
----
+## Screens
 
-## 📋 Table of Contents
+The receptionist generates a single-use booking link and shows its QR code:
 
-- [Features](#-features)
-- [Tech Stack](#-tech-stack)
-- [Architecture](#-architecture)
-- [Quality Metrics](#-quality-metrics)
-- [Getting Started](#-getting-started)
-- [Project Structure](#-project-structure)
-- [Security](#-security)
-- [Testing](#-testing)
-- [Deployment](#-deployment)
-- [Roadmap](#-roadmap)
+![Magic link with its QR code expanded](docs/screenshots/magic-link-qr.png)
 
----
+The customer scans it, books, and watches their place in the queue (polled
+every 10 seconds). The Feedback button is on every page.
 
-## ✨ Features
+<p>
+  <img src="docs/screenshots/customer-booking-form.png" width="200" alt="Customer booking form opened from the QR code">
+  <img src="docs/screenshots/customer-queue-status.png" width="200" alt="Live queue position and estimated wait">
+  <img src="docs/screenshots/feedback-dialog.png" width="200" alt="Feedback dialog">
+</p>
 
-### Core Functionality
+The shop owner runs staff accounts from Dashboard → Staff, without a
+developer. An invite is a single-use link (or QR code) that expires in 7 days:
 
-- **Magic Link Booking System**
-  - QR code generation for contactless customer booking
-  - Cryptographically secure 128-character tokens
-  - 24-hour expiration with single-use enforcement
-  - Automatic cleanup of expired links
+![Staff page with a new invite link and its QR code](docs/screenshots/staff-invite.png)
 
-- **Real-Time Queue Management**
-  - Live queue updates (10-second polling)
-  - Drag-and-drop position reordering with transaction safety
-  - Status tracking: Queued → In Service → Done / Cancelled
-  - Audit trail for cancellations and modifications
+The new receptionist opens it on their phone and picks their own username and
+password. When someone forgets their password, the owner sends them a reset
+link from the same page; removing access signs that person out at once.
 
-- **Shop Status Control**
-  - Open/Closed toggle with preset closure reasons
-  - Blocks new bookings when closed
-  - Real-time status updates across all clients
+<p>
+  <img src="docs/screenshots/invite-signup.png" width="200" alt="Signup form opened from an invite link">
+</p>
 
-- **Authentication & Authorization**
-  - Session-based authentication (Passport.js)
-  - bcrypt password hashing (cost factor 12)
-  - Rate limiting on login/signup endpoints
-  - Protected receptionist routes, public booking routes
+![Staff accounts with a reset link for one receptionist](docs/screenshots/staff-accounts.png)
 
-- **Privacy-Friendly Analytics**
-  - GoatCounter integration (cookieless, GDPR-compliant)
-  - Event tracking for key user actions
-  - No PII collection
+Screenshots are from a local run on 2026-09-29 with made-up people.
 
----
+## How it works
 
-## 🛠 Tech Stack
+| Who | Does what | Auth |
+|-----|-----------|------|
+| Owner (admin) | Everything a receptionist does, plus invites staff, sends password reset links, changes roles, removes access | Same as receptionist, with `role = 'admin'` |
+| Receptionist | Logs in, generates a single-use booking link + QR code, manages the queue, opens/closes the shop, changes their own password | Username + password + branch code; DB-backed session cookie |
+| Customer | Opens the link, submits plate/make/model, sees position and estimated wait (polled every 10 s) | The link itself: 128-character random token, valid 24 h, works once |
+| Anyone | "Feedback" button on every page | None (rate-limited, honeypot) |
 
-### Frontend
-- **Next.js 14** - React Server Components, App Router
-- **React 19** - Modern UI library
-- **TypeScript 5** - Type-safe development
-- **TailwindCSS v4** - Utility-first styling
+Accounts are invite-only. The first owner account is created at `/signup` with
+the code in `OWNER_SETUP_CODE`; after that, set the variable back to empty and
+invite everyone else from the Staff page. Invite and reset tokens are stored
+as SHA-256 hashes and carried in the URL fragment, so they don't reach server
+logs or analytics.
 
-### Backend
-- **Next.js API Routes** - Serverless functions
-- **PostgreSQL** - Relational database (NeonDB serverless)
-- **Passport.js** - Authentication middleware
-- **express-session** - Session management with PostgreSQL store
+Each branch (`branch_code`) is a tenant. The branch comes from the logged-in
+receptionist's session, never from request input, and every queue query
+filters on it.
 
-### Security & Performance
-- **bcrypt** - Password hashing (cost 12)
-- **express-rate-limit** - Brute force protection
-- **connect-pg-simple** - PostgreSQL session store
-- **QRCode** - Contactless booking link generation
+## Stack
 
-### Testing & Quality
-- **Vitest v4** - Unit and integration testing
-- **pg-mem** - In-memory PostgreSQL for isolated tests
-- **ESLint** - Code quality enforcement
-- **TypeScript Strict Mode** - Enhanced type safety
+- Next.js 16 (App Router, route handlers), React 19, TypeScript, Tailwind CSS 4
+- PostgreSQL via `pg` (Neon in production)
+- bcrypt (cost 12) for passwords; sessions are random IDs stored in the
+  `sessions` table, so logout and account deletion take effect immediately
+- Login/signup/feedback rate limits stored in Postgres (`rate_limits`), which
+  works across serverless instances
+- `qrcode` for QR images, GoatCounter for cookieless page counts
+- Vitest against PGlite (Postgres compiled to WASM), so tests exercise the real
+  SQL, constraints and triggers without a database server
 
----
-
-## 🏗 Architecture
-
-### Database Schema (PostgreSQL)
-
-Six normalized tables with foreign key constraints:
-
-```
-branches → users (receptionists)
-       ↓
-   shop_status
-       ↓
-customer_magic_links ← bookings (queue)
-       ↓
-   sessions
-```
-
-**Key Design Decisions:**
-- Transaction-safe position updates (SERIALIZABLE isolation)
-- Indexed queries for performance (`branch_code`, `status`, `position`)
-- Automatic timestamp triggers (`updated_at`)
-- CHECK constraints for data validation
-- Timing-safe token comparison (prevents timing attacks)
-
-### API Design
-
-**Public Endpoints** (no auth required):
-- `GET /api/shop-status` - Check if accepting bookings
-- `POST /api/magic-links/validate` - Validate token before booking
-- `POST /api/bookings/submit` - Submit new booking
-
-**Protected Endpoints** (receptionist auth required):
-- `POST /api/auth/signup|login|logout` - Session management
-- `POST /api/magic-links/generate` - Create magic link + QR code
-- `GET /api/magic-links/list` - List active/expired links
-- `GET /api/bookings` - Fetch queue
-- `PATCH /api/bookings/:id` - Update status/position
-- `POST /api/shop-status` - Toggle open/closed
-
----
-
-## 📊 Quality Metrics
-
-### Test Coverage
-- **130/130 tests passing** (100% pass rate)
-- **7 test suites** covering all critical flows
-- **~3-5 second** test execution time
-- **80%+ functional path coverage**
-
-```
-✓ Database initialization (12 tests)
-✓ Authentication routes (14 tests)
-✓ Magic link service (18 tests)
-✓ Magic link API routes (23 tests)
-✓ Booking service (18 tests)
-✓ Booking API routes (23 tests)
-✓ Receptionist dashboard (22 tests)
-```
-
-### Security Audit
-- **Score: 94/100** (EXCELLENT)
-- **P0 vulnerabilities: 0** (zero critical issues)
-- **OWASP Top 10: Compliant**
-- 100% parameterized SQL queries (zero SQL injection risk)
-
-### Code Quality
-- **Quality Review: 95/100** (production ready)
-- **UX Review: 82/100** (WCAG 2.1 AA partial compliance)
-- TypeScript strict mode enabled
-- ESLint configured with best practices
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Node.js 20+ with npm
-- PostgreSQL database (or NeonDB serverless)
-- Environment variables (see `.env.example`)
-
-### Installation
+## Local development
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/washboard.git
-cd washboard/washboard-app
-
-# Install dependencies
+cd washboard-app
 npm install
-
-# Set up environment variables
-cp .env.example .env.local
-# Edit .env.local with your DATABASE_URL and SESSION_SECRET
-
-# Run database migrations
-psql $DATABASE_URL < src/lib/migrations/001_initial_schema_up.sql
-
-# Start development server
-npm run dev
-# → http://localhost:3000
+cp .env.example .env.local      # set DATABASE_URL and OWNER_SETUP_CODE
+npm run db:migrate              # applies src/lib/migrations/*.sql
+npm run dev                     # http://localhost:3000
 ```
 
-### Environment Variables
+Then open `/signup`, enter the setup code to create the owner account, and
+invite a receptionist from Dashboard → Staff.
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `DATABASE_URL` | yes | Postgres connection string (Neon pooled URL in production) |
+| `NEXT_PUBLIC_APP_URL` | yes in production | Canonical URL used in magic links and QR codes |
+| `OWNER_SETUP_CODE` | only to create the first owner | `/signup` with this code creates an admin account; delete it afterwards |
+| `FEEDBACK_WEBHOOK_URL` | no | Discord webhook that gets a message per feedback submission |
+| `NEXT_PUBLIC_GOATCOUNTER_CODE` | no | GoatCounter site code |
+
+## Checks
 
 ```bash
-# Database
-DATABASE_URL=postgresql://user:password@host:5432/washboard
-
-# Session Secret (generate with: openssl rand -base64 32)
-SESSION_SECRET=your-secret-key-here
-
-# Next.js
-NODE_ENV=development
-
-# Analytics (optional)
-NEXT_PUBLIC_GOATCOUNTER_CODE=your-code-here
-```
-
-### Running Tests
-
-```bash
-# Run all tests
-npm test
-
-# Watch mode (auto-rerun on changes)
-npm run test:watch
-
-# UI mode (interactive test runner)
-npm run test:ui
-
-# Coverage report
-npm run test:coverage
-```
-
----
-
-## 📁 Project Structure
-
-```
-washboard/
-├── docs/                          # Documentation
-│   └── context_handoff.md         # Original requirements
-├── washboard-app/                 # Main application
-│   ├── src/
-│   │   ├── app/                   # Next.js App Router
-│   │   │   ├── api/               # API routes (serverless)
-│   │   │   ├── booking/           # Customer booking pages
-│   │   │   ├── dashboard/         # Receptionist dashboard
-│   │   │   └── login|signup/      # Authentication pages
-│   │   ├── lib/                   # Business logic
-│   │   │   ├── auth.ts            # Authentication utilities
-│   │   │   ├── db.ts              # Database connection
-│   │   │   ├── schema.sql         # PostgreSQL schema
-│   │   │   ├── migrations/        # Schema migrations
-│   │   │   └── services/          # Service layer
-│   │   ├── __tests__/             # Test suite (130 tests)
-│   │   └── components/            # React components
-│   ├── package.json               # Dependencies
-│   └── vitest.config.ts           # Test configuration
-└── README.md                      # This file
-```
-
----
-
-## 🔒 Security
-
-### Implementation Highlights
-
-✅ **Password Security**
-- bcrypt hashing with cost factor 12 (~250ms/hash)
-- Minimum 8-character password requirement
-- Database constraint: `password_hash` ≥ 60 characters
-
-✅ **Session Security**
-- httpOnly cookies (XSS protection)
-- secure flag (HTTPS-only in production)
-- sameSite: 'lax' (CSRF mitigation)
-- Session regeneration on login (prevents fixation)
-
-✅ **SQL Injection Prevention**
-- 100% parameterized queries (no string concatenation)
-- pg-format for dynamic query construction
-- Input validation with CHECK constraints
-
-✅ **Rate Limiting**
-- Login: 5 attempts per 15 minutes (per IP)
-- Signup: 3 attempts per hour (per IP)
-- Prevents brute force attacks
-
-✅ **Token Security**
-- Cryptographically secure random generation (crypto.randomBytes)
-- 128-character tokens (768 bits of entropy)
-- Timing-safe comparison (prevents timing attacks)
-
-### Security Audit Results
-
-**Score: 94/100 - EXCELLENT**
-
-**Strengths:**
-- Zero P0 (critical) vulnerabilities
-- OWASP Top 10 compliance
-- Industry-standard password hashing
-- Comprehensive input validation
-
-**Minor Recommendations (-6 points):**
-- Add CSRF tokens on forms (mitigated by sameSite cookies)
-- Implement Content-Security-Policy headers (defense-in-depth)
-- Add automated security scanning in CI/CD (post-deployment)
-
----
-
-## 🧪 Testing
-
-### Test Strategy
-
-- **Unit Tests:** Database queries, service functions, utility functions
-- **Integration Tests:** API routes, authentication flows, end-to-end workflows
-- **Database Testing:** pg-mem (in-memory PostgreSQL) for fast, isolated tests
-- **No External Dependencies:** Tests run completely offline
-
-### Test Examples
-
-```typescript
-// Magic link generation with expiration
-it('should generate magic link with 24-hour expiration', async () => {
-  const link = await generateMagicLink({
-    branchCode: 'MAIN',
-    customerName: 'John Doe',
-    createdBy: 1,
-  });
-
-  expect(link.token).toHaveLength(128);
-  expect(link.expiresAt).toBeGreaterThan(Date.now() + 23 * 60 * 60 * 1000);
-});
-
-// Transaction-safe position updates
-it('should reorder queue positions with SERIALIZABLE isolation', async () => {
-  const booking = await createBooking({ position: 2, ... });
-  await updateBookingPosition(booking.id, 1);
-
-  const queue = await getQueue('MAIN', 'queued');
-  expect(queue[0].position).toBe(1);
-  expect(queue[1].position).toBe(2); // Original position 1 shifted down
-});
-```
-
----
-
-## 🚢 Deployment
-
-### Vercel + NeonDB (Current Production)
-
-```bash
-# Build for production
+npm test            # 166 tests, PGlite, no DB server needed
+npm run typecheck
+npx eslint src
 npm run build
-
-# Verify build succeeds
-npm start
 ```
 
-**Environment Variables (Vercel Dashboard):**
-- `DATABASE_URL` - NeonDB connection string
-- `SESSION_SECRET` - 32+ character random string
-- `NODE_ENV=production`
-- `NEXT_PUBLIC_GOATCOUNTER_CODE` - Analytics code
+GitHub Actions runs all four on every push and pull request
+(`.github/workflows/ci.yml`).
 
-**Post-Deployment Checklist:**
-- ✅ Homepage loads
-- ✅ Shop status endpoint works
-- ✅ Receptionist login functional
-- ✅ Dashboard loads with queue
-- ✅ Magic link generation works (correct domain)
-- ✅ Customer booking flow works
-- ✅ Analytics tracking works
+## Deploying
 
-### Custom Domain Setup
+See [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) for the
+deploy runbook, the September 2026 audit findings and the tradeoffs behind
+them.
 
-Configured on Porkbun DNS → Vercel:
-- Production: `washboard.ithinkandicode.space`
-- Magic links automatically use custom domain (dynamic URL generation)
+## Layout
 
----
-
-## 🗺 Roadmap
-
-### ✅ Completed (Phases 0-7)
-- Project setup and database schema
-- Authentication system with session management
-- Magic link system with QR codes
-- Customer booking form
-- Receptionist dashboard with queue management
-- GoatCounter analytics integration
-- Comprehensive testing suite (130 tests)
-- Security and quality audits
-- Production deployment
-
-### 🚧 Future Enhancements
-
-**Phase 9: Real-time Upgrades**
-- WebSocket or Server-Sent Events (SSE) for live updates
-- Drag-and-drop queue reordering
-- Push notifications for customers (PWA)
-
-**Phase 10: Queue Intelligence**
-- Wait time estimation based on historical data
-- Predictive analytics (busy hours, cancellation patterns)
-- Performance dashboards
-
-**Phase 11: Multi-Branch Support**
-- Multi-location management (franchise mode)
-- Cross-branch reporting
-- Role-based access control
-
-**Phase 12: PWA & Offline Support**
-- Service worker caching
-- Offline mode for dashboard
-- Add to Home Screen prompt
-
-**Phase 13: Customer Communication**
-- SMS notifications via Twilio (optional)
-- Messenger bot integration
-- WhatsApp templates
-
----
-
-## 📝 License
-
-**Proprietary** - This project is a real-world client application and is not open source.
-
----
-
-## 👤 Author
-
-**Alfie Pelicano**
-Portfolio: [ithinkandicode.space](https://ithinkandicode.space)
-Email: alfieprojects.dev@gmail.com
-
----
-
-## 🙏 Acknowledgments
-
-- Built with modern web technologies and best practices
-- Designed for real-world production use
-- Security-first architecture
-- Comprehensive testing strategy
-- Deployed on Vercel with NeonDB serverless PostgreSQL
-
----
-
-**⭐ If you're interested in this project or have questions, feel free to reach out!**
+```
+washboard-app/
+  src/app/api/          route handlers (auth, staff, bookings, magic-links, shop-status, feedback, health)
+  src/app/book/         customer pages (booking form, live queue status)
+  src/app/dashboard/    receptionist pages; staff/ (admins) and account/ (own password)
+  src/lib/auth/         sessions, rate limiting, invite and reset tokens
+  scripts/              migrate.mjs, make-admin.mjs (recovery when no admin can log in)
+  src/lib/migrations/   numbered SQL migrations (applied by scripts/migrate.mjs)
+  src/__tests__/        Vitest suites
+```

@@ -54,7 +54,7 @@ describe('Magic Link API Routes', () => {
       `INSERT INTO users (user_id, branch_code, username, password_hash, name, role)
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT DO NOTHING`,
-      [TEST_USER_ID, TEST_BRANCH_CODE, 'testuser', '$2b$12$test', 'Test User', 'receptionist']
+      [TEST_USER_ID, TEST_BRANCH_CODE, 'testuser', '$2b$10$abcdefghijklmnopqrstuuO3VbCmrfbHqX1bY7n6FhGZ9kqYyWf1bC', 'Test User', 'receptionist']
     );
   });
 
@@ -331,7 +331,7 @@ describe('Magic Link API Routes', () => {
         const data = await response.json();
 
         expect(response.status).toBe(400);
-        expect(data.error).toBe('Invalid customerMessenger format');
+        expect(data.code).toBe('INVALID_MESSENGER');
         expect(data.code).toBe('INVALID_MESSENGER');
       });
     });

@@ -1,237 +1,198 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { isAuthenticated } from '@/lib/auth/session';
+import { ACTIVE_STATUSES, lockBranchQueue } from '@/lib/bookings/queue';
 
 /**
- * PATCH /api/bookings/[id]
+ * PATCH /api/bookings/:id
  *
- * Update a booking's status, position, or cancellation details.
- * Authenticated endpoint - requires valid session.
+ * Update a booking's status, queue position or notes (receptionist only).
  *
- * Request Body:
- * - status?: 'queued' | 'in_service' | 'done' | 'cancelled'
- * - position?: number (for reordering queue)
- * - cancelledReason?: string (required when status = 'cancelled')
- * - notes?: string
+ * Body: { status?, position?, cancelledReason?, notes? }
+ *   - status 'cancelled' requires cancelledReason
+ *   - position is 1-based and only applies to bookings still in the queue
  *
- * Business Rules:
- * - Only receptionist can update bookings
- * - Position must be positive integer
- * - Cancelled status requires a reason
- * - Position changes trigger reordering of other bookings
+ * Queue invariant: active bookings (queued or in_service) in a branch hold
+ * positions 1..N with no gaps or duplicates. When a booking leaves the queue
+ * (done/cancelled) the ones behind it move up; when one re-enters it goes to
+ * the back. All of this runs while holding the branch lock, so concurrent
+ * updates and new customer bookings cannot interleave.
+ *
+ * 200 { success, booking } | 400 validation | 401 | 403 other branch | 404 | 500
  */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const client = await db.connect();
+  const authResult = await isAuthenticated(request);
+  if (!authResult.authenticated || !authResult.session) {
+    return NextResponse.json({ error: 'Unauthorized', code: 'NOT_AUTHENTICATED' }, { status: 401 });
+  }
+  const { userId, branchCode } = authResult.session;
 
+  const { id } = await params;
+  const bookingId = Number.parseInt(id, 10);
+  if (!Number.isInteger(bookingId) || bookingId <= 0) {
+    return NextResponse.json({ error: 'Invalid booking ID', code: 'INVALID_ID' }, { status: 400 });
+  }
+
+  let body: Record<string, unknown>;
   try {
-    // 1. Check authentication
-    const authResult = await isAuthenticated(request);
-    if (!authResult.authenticated || !authResult.session) {
-      return NextResponse.json(
-        { error: 'Unauthorized', code: 'NOT_AUTHENTICATED' },
-        { status: 401 }
-      );
-    }
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body', code: 'INVALID_BODY' }, { status: 400 });
+  }
+  const { status, position, cancelledReason, notes } = body as {
+    status?: string;
+    position?: number;
+    cancelledReason?: string;
+    notes?: string | null;
+  };
 
-    const { userId, branchCode } = authResult.session;
-
-    // 2. Parse parameters
-    const { id } = await params;
-    const bookingId = parseInt(id);
-
-    if (isNaN(bookingId)) {
-      return NextResponse.json(
-        { error: 'Invalid booking ID', code: 'INVALID_ID' },
-        { status: 400 }
-      );
-    }
-
-    // 3. Parse request body
-    const body = await request.json();
-    const { status, position, cancelledReason, notes } = body;
-
-    // 4. Validate status
-    const validStatuses = ['queued', 'in_service', 'done', 'cancelled'];
-    if (status && !validStatuses.includes(status)) {
-      return NextResponse.json(
-        { error: 'Invalid status', code: 'INVALID_STATUS' },
-        { status: 400 }
-      );
-    }
-
-    // 5. Validate cancelled status requires reason
-    if (status === 'cancelled' && !cancelledReason) {
-      return NextResponse.json(
-        {
-          error: 'Cancellation reason required',
-          code: 'MISSING_CANCEL_REASON',
-        },
-        { status: 400 }
-      );
-    }
-
-    // 6. Validate position
-    if (position !== undefined && (position < 1 || !Number.isInteger(position))) {
-      return NextResponse.json(
-        { error: 'Position must be positive integer', code: 'INVALID_POSITION' },
-        { status: 400 }
-      );
-    }
-
-    await client.query('BEGIN');
-
-    // 7. Fetch existing booking and verify access
-    const bookingResult = await client.query(
-      'SELECT * FROM bookings WHERE id = $1 FOR UPDATE',
-      [bookingId]
+  const validStatuses = ['queued', 'in_service', 'done', 'cancelled'];
+  if (status !== undefined && !validStatuses.includes(status)) {
+    return NextResponse.json({ error: 'Invalid status', code: 'INVALID_STATUS' }, { status: 400 });
+  }
+  if (status === 'cancelled' && !cancelledReason) {
+    return NextResponse.json(
+      { error: 'Cancellation reason required', code: 'MISSING_CANCEL_REASON' },
+      { status: 400 }
     );
+  }
+  if (position !== undefined && (!Number.isInteger(position) || position < 1)) {
+    return NextResponse.json(
+      { error: 'Position must be positive integer', code: 'INVALID_POSITION' },
+      { status: 400 }
+    );
+  }
+  if (notes !== undefined && notes !== null && (typeof notes !== 'string' || notes.length > 1000)) {
+    return NextResponse.json({ error: 'Notes must be under 1000 characters', code: 'INVALID_NOTES' }, { status: 400 });
+  }
+  if (status === undefined && position === undefined && notes === undefined) {
+    return NextResponse.json({ error: 'No fields to update', code: 'NO_UPDATES' }, { status: 400 });
+  }
 
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    await lockBranchQueue(client, branchCode);
+
+    const bookingResult = await client.query('SELECT * FROM bookings WHERE id = $1 FOR UPDATE', [bookingId]);
     if (bookingResult.rows.length === 0) {
       await client.query('ROLLBACK');
-      return NextResponse.json(
-        { error: 'Booking not found', code: 'NOT_FOUND' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Booking not found', code: 'NOT_FOUND' }, { status: 404 });
     }
 
     const booking = bookingResult.rows[0];
-
-    // 8. Security: Verify booking belongs to user's branch
     if (booking.branch_code !== branchCode) {
       await client.query('ROLLBACK');
-      return NextResponse.json(
-        { error: 'Access denied', code: 'FORBIDDEN' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'Access denied', code: 'FORBIDDEN' }, { status: 403 });
     }
 
-    // 9. Handle position change (reordering)
-    if (position !== undefined && position !== booking.position) {
-      const oldPosition = booking.position;
-      const newPosition = position;
+    const wasActive = ACTIVE_STATUSES.includes(booking.status);
+    const nextStatus: string = status ?? booking.status;
+    const willBeActive = ACTIVE_STATUSES.includes(nextStatus);
+    let nextPosition: number = booking.position;
 
-      // Reorder other bookings
-      if (newPosition < oldPosition) {
-        // Moving up: shift bookings between newPosition and oldPosition down
+    if (wasActive && !willBeActive) {
+      // Leaving the queue: everyone behind moves up one place.
+      await client.query(
+        `UPDATE bookings SET position = position - 1
+         WHERE branch_code = $1 AND status IN ('queued', 'in_service')
+           AND position > $2 AND id <> $3`,
+        [branchCode, booking.position, bookingId]
+      );
+    } else if (!wasActive && willBeActive) {
+      // Re-entering the queue: goes to the back.
+      const max = await client.query(
+        `SELECT COALESCE(MAX(position), 0) AS max FROM bookings
+         WHERE branch_code = $1 AND status IN ('queued', 'in_service') AND id <> $2`,
+        [branchCode, bookingId]
+      );
+      nextPosition = Number(max.rows[0].max) + 1;
+    }
+
+    if (position !== undefined && position !== booking.position && wasActive && willBeActive) {
+      const count = await client.query(
+        `SELECT COUNT(*) AS n FROM bookings
+         WHERE branch_code = $1 AND status IN ('queued', 'in_service')`,
+        [branchCode]
+      );
+      const newPosition = Math.min(position, Number(count.rows[0].n));
+
+      if (newPosition < booking.position) {
         await client.query(
-          `UPDATE bookings
-           SET position = position + 1
-           WHERE branch_code = $1
-             AND status IN ('queued', 'in_service')
-             AND position >= $2
-             AND position < $3
-             AND id != $4`,
-          [branchCode, newPosition, oldPosition, bookingId]
+          `UPDATE bookings SET position = position + 1
+           WHERE branch_code = $1 AND status IN ('queued', 'in_service')
+             AND position >= $2 AND position < $3 AND id <> $4`,
+          [branchCode, newPosition, booking.position, bookingId]
         );
-      } else {
-        // Moving down: shift bookings between oldPosition and newPosition up
+      } else if (newPosition > booking.position) {
         await client.query(
-          `UPDATE bookings
-           SET position = position - 1
-           WHERE branch_code = $1
-             AND status IN ('queued', 'in_service')
-             AND position > $2
-             AND position <= $3
-             AND id != $4`,
-          [branchCode, oldPosition, newPosition, bookingId]
+          `UPDATE bookings SET position = position - 1
+           WHERE branch_code = $1 AND status IN ('queued', 'in_service')
+             AND position > $2 AND position <= $3 AND id <> $4`,
+          [branchCode, booking.position, newPosition, bookingId]
         );
       }
+      nextPosition = newPosition;
     }
 
-    // 10. Build update query
-    const updates: string[] = [];
-    const updateParams: any[] = [];
-    let paramCount = 0;
-
-    if (status !== undefined) {
-      paramCount++;
-      updates.push(`status = $${paramCount}`);
-      updateParams.push(status);
-    }
-
-    if (position !== undefined) {
-      paramCount++;
-      updates.push(`position = $${paramCount}`);
-      updateParams.push(position);
-    }
-
-    if (notes !== undefined) {
-      paramCount++;
-      updates.push(`notes = $${paramCount}`);
-      updateParams.push(notes);
-    }
-
-    // Handle cancellation
-    if (status === 'cancelled') {
-      paramCount++;
-      updates.push(`cancelled_reason = $${paramCount}`);
-      updateParams.push(cancelledReason);
-
-      paramCount++;
-      updates.push(`cancelled_by = $${paramCount}`);
-      updateParams.push(userId);
-
-      updates.push(`cancelled_at = NOW()`);
-    }
-
-    if (updates.length === 0) {
-      await client.query('ROLLBACK');
-      return NextResponse.json(
-        { error: 'No fields to update', code: 'NO_UPDATES' },
-        { status: 400 }
-      );
-    }
-
-    // 11. Execute update
-    updateParams.push(bookingId);
-    const updateQuery = `
-      UPDATE bookings
-      SET ${updates.join(', ')}, updated_at = NOW()
-      WHERE id = $${paramCount + 1}
-      RETURNING *
-    `;
-
-    const result = await client.query(updateQuery, updateParams);
-    const updatedBooking = result.rows[0];
-
+    const cancelling = status === 'cancelled';
+    const result = await client.query(
+      `UPDATE bookings SET
+         status = $1,
+         position = $2,
+         notes = CASE WHEN $3::boolean THEN $4::text ELSE notes END,
+         cancelled_reason = CASE WHEN $5::boolean THEN $6::text ELSE cancelled_reason END,
+         cancelled_by = CASE WHEN $5::boolean THEN $7::integer ELSE cancelled_by END,
+         cancelled_at = CASE WHEN $5::boolean THEN NOW() ELSE cancelled_at END,
+         updated_at = NOW()
+       WHERE id = $8
+       RETURNING *`,
+      [
+        nextStatus,
+        nextPosition,
+        notes !== undefined,
+        notes ?? null,
+        cancelling,
+        cancelledReason ?? null,
+        userId,
+        bookingId,
+      ]
+    );
     await client.query('COMMIT');
 
-    // 12. Return updated booking
+    const updated = result.rows[0];
     return NextResponse.json(
       {
         success: true,
         booking: {
-          id: updatedBooking.id,
-          branchCode: updatedBooking.branch_code,
-          plate: updatedBooking.plate,
-          vehicleMake: updatedBooking.vehicle_make,
-          vehicleModel: updatedBooking.vehicle_model,
-          customerName: updatedBooking.customer_name,
-          customerMessenger: updatedBooking.customer_messenger,
-          preferredTime: updatedBooking.preferred_time,
-          status: updatedBooking.status,
-          position: updatedBooking.position,
-          cancelledReason: updatedBooking.cancelled_reason,
-          cancelledBy: updatedBooking.cancelled_by,
-          cancelledAt: updatedBooking.cancelled_at,
-          notes: updatedBooking.notes,
-          createdAt: updatedBooking.created_at,
-          updatedAt: updatedBooking.updated_at,
+          id: updated.id,
+          branchCode: updated.branch_code,
+          plate: updated.plate,
+          vehicleMake: updated.vehicle_make,
+          vehicleModel: updated.vehicle_model,
+          customerName: updated.customer_name,
+          customerMessenger: updated.customer_messenger,
+          preferredTime: updated.preferred_time,
+          status: updated.status,
+          position: updated.position,
+          cancelledReason: updated.cancelled_reason,
+          cancelledBy: updated.cancelled_by,
+          cancelledAt: updated.cancelled_at,
+          notes: updated.notes,
+          createdAt: updated.created_at,
+          updatedAt: updated.updated_at,
         },
       },
       { status: 200 }
     );
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client.query('ROLLBACK').catch(() => {});
     console.error('[API] PATCH /api/bookings/[id] error:', error);
     return NextResponse.json(
-      {
-        error: 'An error occurred while updating booking',
-        code: 'SERVER_ERROR',
-      },
+      { error: 'An error occurred while updating booking', code: 'SERVER_ERROR' },
       { status: 500 }
     );
   } finally {

@@ -2,154 +2,79 @@ import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 
 /**
- * GET /api/bookings/:id/status
+ * GET /api/bookings/:id/status?token=<magic link token>
  *
- * Public endpoint - returns current queue position and status for a booking.
- * No authentication required (customer-facing).
+ * Public queue status for the customer's "you're in the queue" page, polled
+ * every 10 seconds.
  *
- * @param id - Booking ID (integer)
- * @returns {QueueStatus} Current queue status with position and estimated wait
+ * The token is the (already used) magic link that created the booking. It
+ * can no longer create bookings, but it proves the caller is the customer who
+ * made this one, so booking IDs cannot be enumerated to read other customers'
+ * queue status.
  *
- * @example
- * GET /api/bookings/123/status
- * Response: { "status": "queued", "position": 5, "estimatedWaitMinutes": 80 }
+ * Fixed 2026-09-26: an unknown booking ID used to spin in a retry loop that
+ * never incremented its counter, re-querying the database until the function
+ * timed out.
  *
- * Performance: Single indexed query, < 100ms response time
- * Polling: Designed for 10-second polling intervals
+ * 200 { status, position, inService, estimatedWaitMinutes?, completed?, cancelled? }
+ * 400 invalid id/token | 404 not found (or token does not match) | 500
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const bookingId = Number.parseInt(id, 10);
+  if (!Number.isInteger(bookingId) || bookingId <= 0) {
+    return NextResponse.json({ error: 'Invalid booking ID format', code: 'INVALID_BOOKING_ID' }, { status: 400 });
+  }
+
+  const token = request.nextUrl.searchParams.get('token');
+  if (!token || token.length !== 128) {
+    return NextResponse.json({ error: 'Missing or invalid token', code: 'INVALID_TOKEN' }, { status: 400 });
+  }
+
   try {
-    const { id } = await params;
-    const bookingId = parseInt(id);
-    if (isNaN(bookingId) || bookingId <= 0) {
-      return NextResponse.json(
-        { error: 'Invalid booking ID format', code: 'INVALID_BOOKING_ID' },
-        { status: 400 }
-      );
-    }
+    const result = await db.query(
+      `SELECT b.status, b.position, b.created_at, br.avg_service_minutes
+       FROM bookings b
+       JOIN branches br ON b.branch_code = br.branch_code
+       JOIN customer_magic_links ml ON ml.id = b.magic_link_id
+       WHERE b.id = $1 AND ml.token = $2`,
+      [bookingId, token]
+    );
 
-    let bookingQuery = `
-      SELECT 
-        b.id,
-        b.status,
-        b.position,
-        b.branch_code,
-        b.created_at,
-        br.avg_service_minutes
-      FROM bookings b
-      JOIN branches br ON b.branch_code = br.branch_code
-      WHERE b.id = $1
-    `;
-    
-    let retryCount = 0;
-    const maxRetries = 2;
-    let result;
-    
-    while (retryCount < maxRetries) {
-      try {
-        result = await db.query(bookingQuery, [bookingId]);
-        if (result.rows.length > 0) break;
-      } catch (error) {
-        console.error(`Query attempt ${retryCount + 1} failed:`, error);
-        if (retryCount === maxRetries - 1) throw error;
-        retryCount++;
-        await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, retryCount)));
-      }
-    }
-
-    if (!result || result.rows.length === 0) {
-      return NextResponse.json(
-        { error: 'Booking not found', code: 'BOOKING_NOT_FOUND' },
-        { status: 404 }
-      );
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: 'Booking not found', code: 'BOOKING_NOT_FOUND' }, { status: 404 });
     }
 
     const booking = result.rows[0];
-    const { avg_service_minutes } = booking;
-
-    let response: any;
+    const headers = { 'Cache-Control': 'no-store' };
 
     switch (booking.status) {
       case 'queued':
-        const estimatedWaitMinutes = booking.position > 1 
-          ? (booking.position - 1) * avg_service_minutes 
-          : 0;
-
-        response = {
-          status: 'queued',
-          position: booking.position,
-          inService: false,
-          estimatedWaitMinutes,
-          queuedAt: booking.created_at,
-        };
-        break;
-
+        return NextResponse.json(
+          {
+            status: 'queued',
+            position: booking.position,
+            inService: false,
+            estimatedWaitMinutes: Math.max(booking.position - 1, 0) * booking.avg_service_minutes,
+            queuedAt: booking.created_at,
+          },
+          { headers }
+        );
       case 'in_service':
-        response = {
-          status: 'in_service',
-          position: null,
-          inService: true,
-          estimatedWaitMinutes: 0,
-        };
-        break;
-
+        return NextResponse.json(
+          { status: 'in_service', position: null, inService: true, estimatedWaitMinutes: 0 },
+          { headers }
+        );
       case 'done':
-        response = {
-          status: 'done',
-          position: null,
-          inService: false,
-          completed: true,
-        };
-        break;
-
-      case 'cancelled':
-        response = {
-          status: 'cancelled',
-          position: null,
-          inService: false,
-          cancelled: true,
-        };
-        break;
-
+        return NextResponse.json({ status: 'done', position: null, inService: false, completed: true }, { headers });
       default:
-        response = {
-          status: booking.status,
-          position: booking.position || null,
-          inService: booking.status === 'in_service',
-        };
+        return NextResponse.json(
+          { status: 'cancelled', position: null, inService: false, cancelled: true },
+          { headers }
+        );
     }
-
-    const headers = new Headers({
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    });
-
-    return NextResponse.json(response, { headers });
-
   } catch (error) {
     console.error('Error fetching booking status:', error);
-    return NextResponse.json(
-      { error: 'Internal server error', code: 'INTERNAL_ERROR' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error', code: 'INTERNAL_ERROR' }, { status: 500 });
   }
-}
-
-/**
- * OPTIONS handler for CORS preflight requests
- */
-export async function OPTIONS() {
-  const headers = new Headers({
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Max-Age': '86400',
-  });
-
-  return new NextResponse(null, { status: 200, headers });
 }

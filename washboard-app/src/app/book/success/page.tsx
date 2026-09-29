@@ -25,12 +25,22 @@ function BookingSuccessContent() {
   const positionStr = searchParams.get('position');
   const initialPosition = positionStr ? parseInt(positionStr) : null;
 
+
   useEffect(() => {
-    if (!bookingId || !isPolling) return;
+    // The booking's magic link token rides in the URL fragment (#t=...), which
+    // browsers never send to the server, to analytics or in Referer headers.
+    // The status endpoint requires it so booking IDs cannot be enumerated.
+    // Read it here rather than during render: after a client-side navigation
+    // the URL (and its hash) is only updated once the new page has rendered.
+    const statusToken = window.location.hash.match(/[#&]t=([A-Za-z0-9_-]{128})/)?.[1];
+    if (!bookingId || !statusToken || !isPolling) return;
 
     const pollInterval = setInterval(async () => {
       try {
-        const response = await fetch(`/api/bookings/${bookingId}/status`);
+        const response = await fetch(
+          `/api/bookings/${bookingId}/status?token=${encodeURIComponent(statusToken)}`,
+          { cache: 'no-store' }
+        );
         if (response.ok) {
           const data = await response.json();
           setQueueStatus(data);
@@ -146,7 +156,7 @@ function BookingSuccessContent() {
             </div>
 
             <h1 className="text-3xl font-bold text-center text-gray-900 mb-4">
-              You're in the Queue
+              You&apos;re in the Queue
             </h1>
 
             <p className="text-center text-gray-800 mb-8">

@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
       WHERE b.branch_code = $1
     `;
 
-    const params: any[] = [branchCode];
+    const params: unknown[] = [branchCode];
     let paramCount = 1;
 
     if (status) {
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
 
     // 8. Get total count for pagination
     let countQuery = 'SELECT COUNT(*) as total FROM bookings WHERE branch_code = $1';
-    const countParams: any[] = [branchCode];
+    const countParams: unknown[] = [branchCode];
 
     if (status) {
       countQuery += ' AND status = $2';
@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
     );
     const avgServiceMinutes = branchResult.rows[0]?.avg_service_minutes || 20;
 
-    const bookings = result.rows.map((booking: any) => {
+    const bookings = result.rows.map((booking) => {
       const estimatedWaitMinutes =
         booking.status === 'queued'
           ? (booking.position - 1) * avgServiceMinutes

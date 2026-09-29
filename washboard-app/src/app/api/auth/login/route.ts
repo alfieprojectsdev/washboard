@@ -3,12 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcrypt';
 import db from '@/lib/db';
 import { applyRateLimit, loginLimiter } from '@/lib/auth/rate-limit';
-import {
-  regenerateSession,
-  getSessionIdFromRequest,
-  setSessionCookie,
-  SessionData,
-} from '@/lib/auth/session';
+import { SessionData, cleanupExpiredSessions, startSession } from '@/lib/auth/session';
 
 /**
  * POST /api/auth/login
@@ -68,7 +63,7 @@ export async function POST(request: NextRequest) {
     const result = await db.query(
       `SELECT user_id, branch_code, username, password_hash, name, email, role
        FROM users
-       WHERE branch_code = $1 AND username = $2`,
+       WHERE branch_code = $1 AND username = $2 AND disabled_at IS NULL`,
       [normalizedBranchCode, normalizedUsername]
     );
 
@@ -102,24 +97,15 @@ export async function POST(request: NextRequest) {
       role: user.role,
     };
 
-    // P0 Security: Session regeneration after successful login
-    // This prevents session fixation attacks by:
-    // 1. Destroying any existing session
-    // 2. Creating a new session with a fresh session ID
-    const oldSessionId = getSessionIdFromRequest(request);
-    const newSessionId = await regenerateSession(oldSessionId, userData);
+    // Nothing else deletes expired sessions (there is no cron), so sweep them
+    // here. Logins are rare and the DELETE uses idx_session_expire.
+    await cleanupExpiredSessions().catch((err) => console.error('Session cleanup failed:', err));
 
-    // Create response with user data
-    const response = NextResponse.json(
-      { success: true, user: userData },
-      { status: 200 }
-    );
-
-    // Set secure session cookie (httpOnly, secure, sameSite for CSRF protection)
-    setSessionCookie(response, newSessionId);
-
+    // Fresh session ID (prevents session fixation), secure cookie, last_login_at.
+    const response = NextResponse.json({ success: true, user: userData }, { status: 200 });
+    await startSession(request, response, userData);
     return response;
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Login error:', err);
 
     // Don't expose internal error details to client
