@@ -143,6 +143,39 @@ Do these in order. Steps 1–3 and 5 need your Neon and Vercel logins.
    useless, so this is tidiness. It rewrites every commit hash and needs a
    force-push.
 
+## Changing the schema after launch
+
+`npm test` runs every migration on an empty database, twice, and
+`src/__tests__/database/migrate.test.ts` checks the runner itself. None of
+that sees production's rows, and some migrations only fail on real data.
+Washboard already has one: 002's unique index on `bookings(magic_link_id)`
+can't be built while two bookings share a magic link. A new `NOT NULL`
+column without a default fails the same way on a table with rows. On Vercel
+that failure stops the build (the old deployment stays up), so you would
+find out at deploy time.
+
+Before merging a pull request that adds a file to `src/lib/migrations/`, try
+it on a copy of production:
+
+1. Neon Console → project → Branches → Create branch, with the production
+   branch as parent, at the current point in time. Branches are
+   copy-on-write, so it is ready in seconds and production is untouched.
+2. Copy the new branch's pooled connection string and run, from
+   `washboard-app`:
+   ```bash
+   DATABASE_URL="<branch string>" npm run db:migrate
+   ```
+   Each pending file should print `ran`. A `FAILED` line names the file and
+   the Postgres error; fix the migration, or the rows it trips over, before
+   merging.
+3. Delete the branch, so copies of customers' names, plates and Messenger
+   handles don't pile up.
+
+Migrations run before the new code goes live, and if `next build` fails
+after them, the old code keeps running on the new schema. So add tables and
+columns freely, but drop or rename something only in a later migration, once
+no deployed code uses it.
+
 ## Tradeoffs
 
 - There's no email "forgot password". It would need an email provider and
