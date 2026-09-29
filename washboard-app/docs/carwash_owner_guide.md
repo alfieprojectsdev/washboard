@@ -169,6 +169,10 @@ turn is coming, so someone has to do it by hand:
    handle). Messenger opens in a new tab
 3. Send something like "Your car is nearly up, please head over now"
 
+If they typed a name instead of a link (for example "Juan Dela Cruz"), the
+💬 is followed by what they typed, as plain text rather than a link. Search
+for it in Messenger instead.
+
 #### **In Service Tab**
 - Cars currently being washed
 - **Action:** Click **"Complete"** when done
